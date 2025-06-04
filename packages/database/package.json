@@ -1,0 +1,39 @@
+{
+    "name": "@workspace/database",
+    "version": "0.0.0",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "files": [
+        "dist/**"
+    ],
+    "scripts": {
+        "build-database": "tsc",
+        "build": "tsc",
+        "dev": "tsc --watch",
+        "db:push": "drizzle-kit push",
+        "db:generate": "drizzle-kit generate",
+        "db:migrate": "drizzle-kit migrate",
+        "db:seed": "tsx seed.ts",
+        "db:studio": "drizzle-kit studio"
+    },
+    "dependencies": {
+        "dotenv": "^16.5.0",
+        "drizzle-orm": "^0.43.1",
+        "drizzle-zod": "0.7.0",
+        "pg": "^8.16.0",
+        "zod": "^3.25.28"
+    },
+    "devDependencies": {
+        "@types/node": "^22.15.21",
+        "@types/pg": "^8.15.2",
+        "drizzle-kit": "^0.31.1",
+        "tsx": "^4.19.4",
+        "typescript": "^5.7.3"
+    },
+    "peerDependencies": {
+        "pg": "^8.16.0"
+    },
+    "bundleDependencies": [
+        "pg"
+    ]
+}

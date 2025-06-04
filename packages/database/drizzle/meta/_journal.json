@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1748286945984,
+      "tag": "20250526191545_supreme_jane_foster",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1748454925523,
+      "tag": "20250528175525_smart_warpath",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1748454978885,
+      "tag": "20250528175618_complete_crystal",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1748880535652,
+      "tag": "20250602160855_equal_talon",
+      "breakpoints": true
+    }
+  ]
+}
