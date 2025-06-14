@@ -7,6 +7,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CompaniesModule } from './modules/companies/companies.module';
 import { envSchema } from './config/env.schema';
+import { RolesModule } from './modules/roles/roles.module';
 
 @Module({
     imports: [
@@ -29,6 +30,7 @@ import { envSchema } from './config/env.schema';
         DatabaseModule,
         AuthModule,
         CompaniesModule,
+        RolesModule,
     ],
     controllers: [AppController],
     providers: [AppService],

@@ -4,12 +4,12 @@ import { db } from '@workspace/database';
 export const DATABASE_CONNECTION = 'DATABASE_CONNECTION';
 @Global() // To use everywhere
 @Module({
-  providers: [
-    {
-      provide: DATABASE_CONNECTION,
-      useValue: db,
-    },
-  ],
-  exports: [DATABASE_CONNECTION],
+    providers: [
+        {
+            provide: DATABASE_CONNECTION,
+            useValue: db,
+        },
+    ],
+    exports: [DATABASE_CONNECTION],
 })
 export class DatabaseModule {}

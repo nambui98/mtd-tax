@@ -40,6 +40,8 @@ export const usersTable = pgTable('users', {
     authorityToAct: boolean('authority_to_act').default(false),
     hmrcConnectedAt: timestamp('hmrc_connected_at'),
     isActive: boolean('is_active').default(true),
+    passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+    otpSecret: varchar('otp_secret', { length: 255 }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at')
         .notNull()
@@ -57,6 +59,8 @@ export const insertUserSchema = createInsertSchema(usersTable)
         hmrcConnectedAt: true,
         authorityToAct: true,
         hmrcGatewayCredentials: true,
+        passwordHash: true,
+        otpSecret: true,
     })
     .extend({
         password: z.string().min(8, 'Password must be at least 8 characters'),

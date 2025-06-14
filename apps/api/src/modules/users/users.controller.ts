@@ -10,13 +10,14 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import {
+    InsertHMRC,
     InsertUser,
     insertUserSchema,
     UpdateUserDto,
     updateUserSchema,
     User,
-} from '@workspace/database';
-import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
+} from '@workspace/database/dist/index';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { UsersService } from './users.service';
 
 @ApiTags('users')
@@ -26,7 +27,11 @@ export class UsersController {
 
     @Post()
     @UsePipes(new ZodValidationPipe(insertUserSchema))
-    async create(@Body() createUserDto: InsertUser): Promise<User> {
+    async create(
+        @Body()
+        createUserDto: InsertUser &
+            InsertHMRC & { passwordHash: string; otpSecret: string },
+    ): Promise<User> {
         return this.usersService.create(createUserDto);
     }
 

@@ -1,102 +1,298 @@
-import { Body, Controller, Post } from '@nestjs/common';
-import { AuthService } from './auth.service';
-import { z } from 'zod';
 import {
-    InsertUser,
-    InsertCompany,
-    InsertHMRC,
-} from '@workspace/database/dist/schema';
+    Body,
+    Controller,
+    Post,
+    UseGuards,
+    Request,
+    Get,
+    BadRequestException,
+} from '@nestjs/common';
+import { AuthService } from './auth.service';
+import {
+    ApiTags,
+    ApiOperation,
+    ApiResponse,
+    ApiBearerAuth,
+} from '@nestjs/swagger';
+import { LocalAuthGuard } from '../../common/guards/local-auth.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import {
+    signupSchema,
+    loginSchema,
+    verifyOtpSchema,
+    forgotPasswordSchema,
+    resetPasswordSchema,
+    refreshTokensSchema,
+} from './auth.schema';
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const loginSchema = z.object({
-    username: z.string().min(1),
-    password: z.string().min(1),
-});
-
-type LoginDto = z.infer<typeof loginSchema>;
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
     constructor(private readonly authService: AuthService) {}
 
-    @Post('login')
-    async login(@Body() loginDto: LoginDto) {
-        return this.authService.login(loginDto.username, loginDto.password);
-    }
-
     @Post('signup')
+    @ApiOperation({ summary: 'Register a new user' })
+    @ApiResponse({
+        status: 201,
+        description: 'User successfully registered',
+        schema: {
+            type: 'object',
+            properties: {
+                message: {
+                    type: 'string',
+                    example: 'User registered successfully',
+                },
+                user: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'number', example: 1 },
+                        email: { type: 'string', example: 'user@example.com' },
+                        firstName: { type: 'string', example: 'John' },
+                        lastName: { type: 'string', example: 'Doe' },
+                        roles: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            example: ['user'],
+                        },
+                    },
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 400, description: 'Invalid input data' })
     async signup(
-        @Body()
+        @Body(new ZodValidationPipe(signupSchema))
         signupDto: {
-            user: InsertUser & InsertHMRC;
-            company: InsertCompany;
+            user: {
+                email: string;
+                firstName: string;
+                lastName: string;
+                password: string;
+                confirmPassword: string;
+                phoneNumber?: string;
+                jobTitle?: string;
+                practiceType?: string;
+            };
+            company?: {
+                name: string;
+                companyNumber?: string;
+                vatNumber?: string;
+                addressLine1: string;
+                addressLine2?: string;
+                city: string;
+                postcode: string;
+                phoneNumber?: string;
+            };
         },
     ) {
         return this.authService.signup(signupDto);
     }
 
+    @UseGuards(LocalAuthGuard)
+    @Post('login')
+    @ApiOperation({ summary: 'Login user' })
+    @ApiResponse({
+        status: 200,
+        description: 'User successfully logged in',
+        schema: {
+            type: 'object',
+            properties: {
+                access_token: {
+                    type: 'string',
+                    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+                refresh_token: {
+                    type: 'string',
+                    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+                user: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'number', example: 1 },
+                        email: { type: 'string', example: 'user@example.com' },
+                        firstName: { type: 'string', example: 'John' },
+                        lastName: { type: 'string', example: 'Doe' },
+                        roles: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            example: ['user'],
+                        },
+                    },
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 401, description: 'Invalid credentials' })
+    async login(
+        @Body(new ZodValidationPipe(loginSchema))
+        loginDto: {
+            email: string;
+            password: string;
+        },
+    ) {
+        return this.authService.login(loginDto.email, loginDto.password);
+    }
+
     @Post('verify-otp')
+    @ApiOperation({ summary: 'Verify OTP for user' })
+    @ApiResponse({
+        status: 200,
+        description: 'OTP successfully verified',
+        schema: {
+            type: 'object',
+            properties: {
+                access_token: {
+                    type: 'string',
+                    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+                refresh_token: {
+                    type: 'string',
+                    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+                user: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'number', example: 1 },
+                        email: { type: 'string', example: 'user@example.com' },
+                        firstName: { type: 'string', example: 'John' },
+                        lastName: { type: 'string', example: 'Doe' },
+                        roles: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            example: ['user'],
+                        },
+                    },
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 401, description: 'Invalid OTP' })
     async verifyOTP(
-        @Body()
-        verifyOTPDto: {
+        @Body(new ZodValidationPipe(verifyOtpSchema))
+        verifyOtpDto: {
+            email: string;
             otp: string;
+        },
+    ) {
+        return this.authService.verifyOTP(verifyOtpDto.email, verifyOtpDto.otp);
+    }
+
+    @Post('forgot-password')
+    @ApiOperation({ summary: 'Request password reset' })
+    @ApiResponse({
+        status: 200,
+        description: 'Password reset email sent',
+        schema: {
+            type: 'object',
+            properties: {
+                message: {
+                    type: 'string',
+                    example: 'Password reset email sent',
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 401, description: 'User not found' })
+    async forgotPassword(
+        @Body(new ZodValidationPipe(forgotPasswordSchema))
+        forgotPasswordDto: {
             email: string;
         },
     ) {
-        return this.authService.verifyOTP(verifyOTPDto.email, verifyOTPDto.otp);
+        return this.authService.forgotPassword(forgotPasswordDto.email);
     }
 
-    @Post('signin-with-password')
-    async signinWithPassword(
-        @Body() signinDto: { email: string; password: string },
+    @Post('reset-password')
+    @ApiOperation({ summary: 'Reset password with token' })
+    @ApiResponse({
+        status: 200,
+        description: 'Password successfully reset',
+        schema: {
+            type: 'object',
+            properties: {
+                message: {
+                    type: 'string',
+                    example: 'Password reset successfully',
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+    async resetPassword(
+        @Body(new ZodValidationPipe(resetPasswordSchema))
+        resetPasswordDto: {
+            token: string;
+            newPassword: string;
+        },
     ) {
-        const response = await this.authService.signInWithPassword(
-            signinDto.email,
-            signinDto.password,
+        return this.authService.resetPassword(
+            resetPasswordDto.token,
+            resetPasswordDto.newPassword,
         );
-        if (
-            response.AuthenticationResult &&
-            response.AuthenticationResult.IdToken
-        ) {
-            const idToken = response.AuthenticationResult.IdToken;
-            const decodedToken = this.decodeJwtToken(idToken);
-            return {
-                tokens: {
-                    accessToken: response.AuthenticationResult.AccessToken,
-                    idToken: idToken,
-                    refreshToken: response.AuthenticationResult.RefreshToken,
-                    expiresIn: response.AuthenticationResult.ExpiresIn,
-                },
-                user: {
-                    id: decodedToken?.sub,
-                    username: signinDto.email,
-                    firstName: decodedToken?.given_name || '',
-                    lastName: decodedToken?.family_name || '',
-                    email: decodedToken?.email || signinDto.email,
-                },
-                message: 'User authenticated successfully.',
-            };
-        }
     }
-    private decodeJwtToken(token: string): {
-        sub: string;
-        given_name: string;
-        family_name: string;
-        email: string;
-    } | null {
-        try {
-            const base64Payload = token.split('.')[1];
-            const jsonPayload = Buffer.from(base64Payload, 'base64').toString(
-                'utf8',
-            );
-            return JSON.parse(jsonPayload) as {
-                sub: string;
-                given_name: string;
-                family_name: string;
-                email: string;
-            };
-        } catch (error) {
-            console.error('Error decoding JWT token', error);
-            return null;
+
+    @Post('refresh-tokens')
+    @ApiOperation({ summary: 'Refresh access token' })
+    @ApiResponse({
+        status: 200,
+        description: 'Tokens successfully refreshed',
+        schema: {
+            type: 'object',
+            properties: {
+                access_token: {
+                    type: 'string',
+                    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+                refresh_token: {
+                    type: 'string',
+                    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 401, description: 'Invalid refresh token' })
+    async refreshTokens(
+        @Body(new ZodValidationPipe(refreshTokensSchema))
+        refreshTokensDto: {
+            refreshToken: string;
+        },
+    ) {
+        if (!refreshTokensDto.refreshToken) {
+            throw new BadRequestException('Refresh token is required');
         }
+        return this.authService.refreshTokens(refreshTokensDto.refreshToken);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Get('profile')
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get user profile' })
+    @ApiResponse({
+        status: 200,
+        description: 'User profile retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                id: { type: 'number', example: 1 },
+                email: { type: 'string', example: 'user@example.com' },
+                firstName: { type: 'string', example: 'John' },
+                lastName: { type: 'string', example: 'Doe' },
+                roles: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    example: ['user'],
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    getProfile(
+        @Request()
+        req: {
+            user: { sub: number; email: string; roles: string[] };
+        },
+    ) {
+        return this.authService.getProfile(req.user);
     }
 }

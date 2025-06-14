@@ -1,116 +1,405 @@
-import { Injectable, Inject, BadRequestException } from '@nestjs/common';
-import { CognitoService } from './cognito.service';
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import {
+    Injectable,
+    Inject,
+    BadRequestException,
+    UnauthorizedException,
+} from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import {
     InsertCompany,
     InsertUser,
     usersTable,
     companiesTable,
     InsertHMRC,
+    rolesTable,
+    userRolesTable,
 } from '@workspace/database/dist/schema';
-import { DATABASE_CONNECTION } from 'src/database/database.module';
+import { DATABASE_CONNECTION } from '../../database/database.module';
 import { Database } from '@workspace/database';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { MailerService } from '@nestjs-modules/mailer';
+import * as bcrypt from 'bcrypt';
+import * as speakeasy from 'speakeasy';
+import * as QRCode from 'qrcode';
 
 @Injectable()
 export class AuthService {
     constructor(
-        private readonly cognitoService: CognitoService,
         @Inject(DATABASE_CONNECTION) private readonly db: Database,
+        private jwtService: JwtService,
+        private configService: ConfigService,
+        private mailerService: MailerService,
     ) {}
 
-    async login(username: string, password: string) {
-        const tokens = await this.cognitoService.login(username, password);
-        return {
-            success: true,
-            data: tokens,
-        };
-    }
-
     async signup(signupDto: {
-        user: InsertUser & InsertHMRC;
-        company: InsertCompany;
+        user: {
+            email: string;
+            firstName: string;
+            lastName: string;
+            password: string;
+            confirmPassword: string;
+            phoneNumber?: string;
+            jobTitle?: string;
+            practiceType?: string;
+        };
+        company?: {
+            name: string;
+            companyNumber?: string;
+            vatNumber?: string;
+            addressLine1: string;
+            addressLine2?: string;
+            city: string;
+            postcode: string;
+            phoneNumber?: string;
+        };
     }) {
-        // Validate passwords match
-        if (signupDto.user.password !== signupDto.user.confirmPassword) {
-            throw new BadRequestException('Passwords do not match');
+        // Check if user exists
+        const existingUser = await this.findUserByEmail(signupDto.user.email);
+        if (existingUser) {
+            throw new BadRequestException('User already exists');
         }
 
-        // 1. Create user in Cognito
-        const cognitoResult = await this.cognitoService.signup(
-            signupDto.user.email,
-            signupDto.user.password,
-            signupDto.user.email,
-        );
+        // Hash password
+        const hashedPassword = await bcrypt.hash(signupDto.user.password, 10);
 
-        if (!cognitoResult.success) {
-            throw new BadRequestException('Failed to create user in Cognito');
-        }
+        // Generate OTP secret
+        const secret = speakeasy.generateSecret({
+            name: `MTD Tax:${signupDto.user.email}`,
+        });
 
-        // 2. Create user and company in database using transaction
+        // Start transaction
         return await this.db.transaction(async (tx) => {
             // Create user
-            const userData: InsertUser = {
-                firstName: signupDto.user.firstName,
-                lastName: signupDto.user.lastName,
-                email: signupDto.user.email,
-                phoneNumber: signupDto.user.phoneNumber,
-                jobTitle: signupDto.user.jobTitle,
-                practiceType: signupDto.user.practiceType,
-                password: signupDto.user.password,
-                confirmPassword: signupDto.user.confirmPassword,
-            };
-
             const [user] = await tx
                 .insert(usersTable)
-                .values([userData])
+                .values({
+                    email: signupDto.user.email,
+                    firstName: signupDto.user.firstName,
+                    lastName: signupDto.user.lastName,
+                    passwordHash: hashedPassword,
+                    otpSecret: secret.base32,
+                    phoneNumber: signupDto.user.phoneNumber,
+                    jobTitle: signupDto.user.jobTitle,
+                    practiceType: signupDto.user.practiceType as
+                        | 'accountancy_practice'
+                        | 'bookkeeping_service'
+                        | 'tax_advisory_firm'
+                        | null,
+                })
                 .returning();
 
-            // Create company
-            const companyData = {
-                name: signupDto.company.name,
-                companyNumber: signupDto.company.companyNumber || null,
-                vatNumber: signupDto.company.vatNumber || null,
-                addressLine1: signupDto.company.addressLine1,
-                addressLine2: signupDto.company.addressLine2 || null,
-                city: signupDto.company.city,
-                postcode: signupDto.company.postcode,
-                phoneNumber: signupDto.company.phoneNumber || null,
-                ownerId: user.id,
-            };
+            // Assign default user role
+            const [defaultRole] = await tx
+                .select()
+                .from(rolesTable)
+                .where(eq(rolesTable.name, 'user'))
+                .limit(1);
 
-            const [company] = await tx
-                .insert(companiesTable)
-                .values([companyData])
-                .returning();
+            if (defaultRole) {
+                await tx.insert(userRolesTable).values({
+                    userId: user.id,
+                    roleId: defaultRole.id,
+                });
+            }
+
+            // Create company if provided
+            if (signupDto.company) {
+                await tx.insert(companiesTable).values({
+                    ...signupDto.company,
+                    ownerId: user.id,
+                });
+            }
+
+            // Generate QR code
+            const qrCode = await QRCode.toDataURL(secret.otpauth_url as string);
+
+            // Send welcome email with QR code
+            await this.mailerService.sendMail({
+                to: signupDto.user.email,
+                subject: 'Welcome to MTD Tax',
+                template: 'welcome',
+                context: {
+                    email: signupDto.user.email,
+                    qrCode,
+                },
+            });
 
             return {
-                success: true,
-                data: {
-                    user,
-                    company,
-                    cognitoUserSub: cognitoResult.userSub,
+                message: 'User created successfully',
+                qrCode,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
                 },
             };
         });
     }
 
-    async verifyOTP(email: string, otp: string) {
-        const result = await this.cognitoService.verifyOTP(email, otp);
-        console.log(result);
+    async login(email: string, password: string) {
+        const user = await this.findUserByEmail(email);
+        if (!user) {
+            throw new UnauthorizedException('Invalid credentials');
+        }
+
+        const isPasswordValid = await bcrypt.compare(
+            password,
+            user.passwordHash,
+        );
+        if (!isPasswordValid) {
+            throw new UnauthorizedException('Invalid credentials');
+        }
+
+        // Get user roles
+        const userRoles = await this.db
+            .select({
+                roleName: rolesTable.name,
+            })
+            .from(userRolesTable)
+            .innerJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id))
+            .where(eq(userRolesTable.userId, user.id));
+
+        const payload = {
+            sub: user.id,
+            email: user.email,
+            roles: userRoles.map((ur) => ur.roleName),
+        };
+
+        const [accessToken, refreshToken] = await Promise.all([
+            this.jwtService.signAsync(payload, {
+                secret: this.configService.get<string>('JWT_SECRET'),
+                expiresIn: '1h',
+            }),
+            this.jwtService.signAsync(payload, {
+                secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+                expiresIn: '7d',
+            }),
+        ]);
+
         return {
-            success: true,
-            data: result,
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            user: {
+                id: user.id,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                roles: userRoles.map((ur) => ur.roleName),
+            },
         };
     }
 
-    async signInWithPassword(email: string, password: string) {
-        const result = await this.cognitoService.signInWithPassword(
-            email,
-            password,
+    async verifyOTP(email: string, token: string) {
+        const user = await this.findUserByEmail(email);
+        if (!user) {
+            throw new UnauthorizedException('User not found');
+        }
+
+        const verified = speakeasy.totp.verify({
+            secret: user.otpSecret as string,
+            encoding: 'base32',
+            token,
+        });
+
+        if (!verified) {
+            throw new UnauthorizedException('Invalid OTP');
+        }
+
+        // Get user roles
+        const userRoles = await this.db
+            .select({
+                roleName: rolesTable.name,
+            })
+            .from(userRolesTable)
+            .innerJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id))
+            .where(eq(userRolesTable.userId, user.id));
+
+        const payload = {
+            sub: user.id,
+            email: user.email,
+            roles: userRoles.map((ur) => ur.roleName),
+        };
+
+        const [accessToken, refreshToken] = await Promise.all([
+            this.jwtService.signAsync(payload, {
+                secret: this.configService.get<string>('JWT_SECRET'),
+                expiresIn: '1h',
+            }),
+            this.jwtService.signAsync(payload, {
+                secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+                expiresIn: '7d',
+            }),
+        ]);
+
+        return {
+            access_token: accessToken,
+            refresh_token: refreshToken,
+            user: {
+                id: user.id,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                roles: userRoles.map((ur) => ur.roleName),
+            },
+        };
+    }
+
+    async forgotPassword(email: string) {
+        const user = await this.findUserByEmail(email);
+        if (!user) {
+            throw new UnauthorizedException('User not found');
+        }
+
+        // Generate password reset token
+        const resetToken = await this.jwtService.signAsync(
+            { sub: user.id, email: user.email },
+            {
+                secret: this.configService.get<string>('JWT_SECRET'),
+                expiresIn: '1h',
+            },
         );
-        return result;
-        // return {
-        //     success: true,
-        //     data: result,
-        // };
+
+        // Send password reset email
+        await this.mailerService.sendMail({
+            to: email,
+            subject: 'Password Reset Request',
+            template: 'password-reset',
+            context: {
+                resetToken,
+                email,
+            },
+        });
+
+        return { message: 'Password reset email sent' };
+    }
+
+    async resetPassword(token: string, newPassword: string) {
+        try {
+            const payload = await this.jwtService.verifyAsync(token, {
+                secret: this.configService.get<string>('JWT_SECRET'),
+            });
+
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+            await this.db
+                .update(usersTable)
+                .set({ passwordHash: hashedPassword })
+                .where(eq(usersTable.id, payload.sub));
+
+            return { message: 'Password reset successfully' };
+        } catch {
+            throw new UnauthorizedException('Invalid or expired token');
+        }
+    }
+
+    async refreshTokens(refreshToken: string) {
+        try {
+            const payload = await this.jwtService.verifyAsync(refreshToken, {
+                secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+            });
+
+            const user = await this.findUserByEmail(payload.email);
+            if (!user) {
+                throw new UnauthorizedException('User not found');
+            }
+
+            // Get user roles
+            const userRoles = await this.db
+                .select({
+                    roleName: rolesTable.name,
+                })
+                .from(userRolesTable)
+                .innerJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id))
+                .where(eq(userRolesTable.userId, user.id));
+
+            const newPayload = {
+                sub: user.id,
+                email: user.email,
+                roles: userRoles.map((ur) => ur.roleName),
+            };
+
+            const [accessToken, newRefreshToken] = await Promise.all([
+                this.jwtService.signAsync(newPayload, {
+                    secret: this.configService.get<string>('JWT_SECRET'),
+                    expiresIn: '1h',
+                }),
+                this.jwtService.signAsync(newPayload, {
+                    secret: this.configService.get<string>(
+                        'JWT_REFRESH_SECRET',
+                    ),
+                    expiresIn: '7d',
+                }),
+            ]);
+
+            return {
+                access_token: accessToken,
+                refresh_token: newRefreshToken,
+            };
+        } catch {
+            throw new UnauthorizedException('Invalid refresh token');
+        }
+    }
+
+    // Helper methods
+    private async findUserByEmail(email: string) {
+        const [user] = await this.db
+            .select()
+            .from(usersTable)
+            .where(eq(usersTable.email, email));
+        return user;
+    }
+
+    async validateUser(email: string, password: string) {
+        const user = await this.findUserByEmail(email);
+        if (!user) {
+            return null;
+        }
+
+        const isPasswordValid = await bcrypt.compare(
+            password,
+            user.passwordHash,
+        );
+        if (!isPasswordValid) {
+            return null;
+        }
+
+        // Get user roles
+        const userRoles = await this.db
+            .select({
+                roleName: rolesTable.name,
+            })
+            .from(userRolesTable)
+            .innerJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id))
+            .where(eq(userRolesTable.userId, user.id));
+
+        return {
+            id: user.id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            roles: userRoles.map((ur) => ur.roleName),
+        };
+    }
+
+    async getProfile(user: { sub: number; email: string; roles: string[] }) {
+        const userData = await this.findUserByEmail(user.email);
+        if (!userData) {
+            throw new UnauthorizedException('User not found');
+        }
+
+        return {
+            id: user.sub,
+            email: user.email,
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            roles: user.roles,
+        };
     }
 }

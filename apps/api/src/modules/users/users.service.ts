@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { DATABASE_CONNECTION } from 'src/database/database.module';
+import { DATABASE_CONNECTION } from '../../database/database.module';
 import {
     Database,
+    InsertHMRC,
     InsertUser,
     insertUserSchema,
     UpdateUserDto,
@@ -13,14 +14,23 @@ import {
 export class UsersService {
     constructor(@Inject(DATABASE_CONNECTION) private readonly db: Database) {}
 
-    async create(createUserDto: InsertUser): Promise<User> {
+    async create(
+        createUserDto: InsertUser &
+            InsertHMRC & { passwordHash: string; otpSecret: string },
+    ): Promise<User> {
         const result = insertUserSchema.safeParse(createUserDto);
         if (!result.success) {
             throw new Error('Invalid user data');
         }
         const [user] = await this.db
             .insert(usersTable)
-            .values([result.data])
+            .values([
+                {
+                    ...result.data,
+                    passwordHash: createUserDto.passwordHash,
+                    otpSecret: createUserDto.otpSecret,
+                },
+            ])
             .returning();
         return user;
     }
