@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
+
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
     Injectable,
@@ -27,6 +27,7 @@ import { MailerService } from '@nestjs-modules/mailer';
 import * as bcrypt from 'bcrypt';
 import * as speakeasy from 'speakeasy';
 import * as QRCode from 'qrcode';
+import axios from 'axios';
 
 @Injectable()
 export class AuthService {
@@ -37,28 +38,7 @@ export class AuthService {
         private mailerService: MailerService,
     ) {}
 
-    async signup(signupDto: {
-        user: {
-            email: string;
-            firstName: string;
-            lastName: string;
-            password: string;
-            confirmPassword: string;
-            phoneNumber?: string;
-            jobTitle?: string;
-            practiceType?: string;
-        };
-        company?: {
-            name: string;
-            companyNumber?: string;
-            vatNumber?: string;
-            addressLine1: string;
-            addressLine2?: string;
-            city: string;
-            postcode: string;
-            phoneNumber?: string;
-        };
-    }) {
+    async signup(signupDto: { user: InsertUser; company?: InsertCompany }) {
         // Check if user exists
         const existingUser = await this.findUserByEmail(signupDto.user.email);
         if (existingUser) {
@@ -117,22 +97,22 @@ export class AuthService {
             }
 
             // Generate QR code
-            const qrCode = await QRCode.toDataURL(secret.otpauth_url as string);
+            // const qrCode = await QRCode.toDataURL(secret.otpauth_url as string);
 
             // Send welcome email with QR code
-            await this.mailerService.sendMail({
-                to: signupDto.user.email,
-                subject: 'Welcome to MTD Tax',
-                template: 'welcome',
-                context: {
-                    email: signupDto.user.email,
-                    qrCode,
-                },
-            });
+            // await this.mailerService.sendMail({
+            //     to: signupDto.user.email,
+            //     subject: 'Welcome to MTD Tax',
+            //     template: 'welcome',
+            //     context: {
+            //         email: signupDto.user.email,
+            //         qrCode,
+            //     },
+            // });
 
             return {
                 message: 'User created successfully',
-                qrCode,
+                // qrCode,
                 user: {
                     id: user.id,
                     email: user.email,
@@ -153,6 +133,9 @@ export class AuthService {
             password,
             user.passwordHash,
         );
+        console.log('====================================');
+        console.log(isPasswordValid);
+        console.log('====================================');
         if (!isPasswordValid) {
             throw new UnauthorizedException('Invalid credentials');
         }
@@ -175,17 +158,18 @@ export class AuthService {
         const [accessToken, refreshToken] = await Promise.all([
             this.jwtService.signAsync(payload, {
                 secret: this.configService.get<string>('JWT_SECRET'),
-                expiresIn: '1h',
+                expiresIn: '3600s',
             }),
             this.jwtService.signAsync(payload, {
                 secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-                expiresIn: '7d',
+                expiresIn: '604800s',
             }),
         ]);
 
         return {
             access_token: accessToken,
             refresh_token: refreshToken,
+            expires_in: 3600,
             user: {
                 id: user.id,
                 email: user.email,
@@ -401,5 +385,18 @@ export class AuthService {
             lastName: userData.lastName,
             roles: user.roles,
         };
+    }
+
+    async hmrcHello() {
+        const response = await axios.get(
+            'https://test-api.service.hmrc.gov.uk/hello/world',
+            {
+                headers: {
+                    // Authorization:async `Bearer ${this.configService.get<string>('HMRC_API_KEY')}`,
+                    Accept: 'application/vnd.hmrc.1.0+xml',
+                },
+            },
+        );
+        return response.data;
     }
 }

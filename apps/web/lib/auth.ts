@@ -5,7 +5,7 @@ import { Env } from './env';
 export const authOptions = {
     providers: [
         CredentialsProvider({
-            id: 'credentials',
+            id: 'local',
             name: 'Email and Password',
             credentials: {
                 email: { label: 'Email', type: 'text' },
@@ -14,7 +14,7 @@ export const authOptions = {
             async authorize(credentials) {
                 try {
                     const response = await fetch(
-                        `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/signin-with-password`,
+                        `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/login`,
                         {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -26,18 +26,19 @@ export const authOptions = {
                     );
 
                     const data = await response.json();
-                    const tokens = data.data.tokens;
-                    const user = data.data.user;
+                    console.log('====================================');
+                    console.log(data);
+                    console.log('====================================');
 
-                    if (response.ok && tokens.accessToken) {
+                    if (response.ok && data.data.access_token) {
                         return {
-                            id: user.id,
-                            firstName: user.firstName,
-                            lastName: user.lastName,
-                            email: user.email || credentials?.email,
-                            accessToken: tokens.accessToken,
-                            refreshToken: tokens.refreshToken,
-                            tokenExpiry: Date.now() + tokens.expiresIn * 1000,
+                            id: data.data.user.id,
+                            firstName: data.data.user.firstName,
+                            lastName: data.data.user.lastName,
+                            email: data.data.user.email || credentials?.email,
+                            accessToken: data.data.access_token,
+                            refreshToken: data.data.refresh_token,
+                            expiresIn: data.data.expires_in * 1000,
                         };
                     }
                     throw new Error(data.message);
@@ -104,7 +105,7 @@ export const authOptions = {
             if (user) {
                 token.accessToken = user.accessToken;
                 token.refreshToken = user.refreshToken;
-                token.expiresAt = user.tokenExpiry;
+                token.expiresAt = Date.now() + (user.expiresIn || 3600) * 1000;
                 token.user = {
                     id: user.id,
                     email: user.email,

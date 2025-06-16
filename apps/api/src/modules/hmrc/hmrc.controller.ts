@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
     Controller,
     Get,
@@ -25,13 +27,17 @@ export class HmrcController {
     @Get('authorize')
     @ApiOperation({ summary: 'Get HMRC authorization URL' })
     @ApiResponse({ status: 200, description: 'Returns the authorization URL' })
-    async getAuthorizationUrl(@Query('state') state: string) {
+    getAuthorizationUrl() {
+        const state = Math.random().toString(36).substring(7);
         return {
-            url: await this.hmrcService.getAuthorizationUrl(state),
+            url: this.hmrcService.getAuthorizationUrl(state),
+            state,
         };
     }
 
     @Get('callback')
+    @ApiBearerAuth()
+    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Handle HMRC OAuth callback' })
     @ApiResponse({
         status: 200,
@@ -44,7 +50,7 @@ export class HmrcController {
         @Req() req: any,
     ) {
         const tokens = await this.hmrcService.exchangeCodeForToken(
-            req.user.id,
+            req.user.userId,
             code,
         );
         return tokens;
@@ -57,7 +63,7 @@ export class HmrcController {
     @ApiResponse({ status: 200, description: 'Returns VAT obligations' })
     @ApiResponse({ status: 400, description: 'Bad request' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
-    async getVatObligations(@Req() req: any, @Query('vrn') vrn: string) {
+    getVatObligations(@Req() req: any, @Query('vrn') vrn: string) {
         return this.hmrcService.getVatObligations(req.user.id, vrn);
     }
 
@@ -71,7 +77,7 @@ export class HmrcController {
     })
     @ApiResponse({ status: 400, description: 'Bad request' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
-    async submitVatReturn(
+    submitVatReturn(
         @Req() req: any,
         @Query('vrn') vrn: string,
         @Body() returnData: VatReturnDto,
@@ -86,7 +92,7 @@ export class HmrcController {
     @ApiResponse({ status: 200, description: 'Returns VAT liabilities' })
     @ApiResponse({ status: 400, description: 'Bad request' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
-    async getVatLiabilities(@Req() req: any, @Query('vrn') vrn: string) {
+    getVatLiabilities(@Req() req: any, @Query('vrn') vrn: string) {
         return this.hmrcService.getVatLiabilities(req.user.id, vrn);
     }
 }

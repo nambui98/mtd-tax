@@ -1,20 +1,21 @@
 'use client';
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { DynamicFormField } from '@workspace/ui/components/dynamic-form-field';
 import { Form } from '@workspace/ui/components/form';
 import { Button } from '@workspace/ui/components/button';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation } from '@tanstack/react-query';
+import { hmrcService } from '@/services/hmrc';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 import { Step, StepFormData } from './content';
 import {
     InsertHMRC,
     insertHMRCSchema,
-    InsertUser,
-    insertUserSchema,
 } from '@workspace/database/dist/schema/users';
-import { Link2Icon, LinkIcon } from 'lucide-react';
-import Link from 'next/link';
+import { LinkIcon } from 'lucide-react';
 
 type Props = {
     onPrevious: VoidFunction;
@@ -29,16 +30,56 @@ export default function Step4({
     setStepFormData,
     setStep,
 }: Props) {
+    const { mutate: connectToHmrc, isPending } = useMutation({
+        mutationFn: async () => {
+            const response = await hmrcService.connectToHmrc();
+            return response.data;
+        },
+        onSuccess: (data) => {
+            debugger;
+            // Store the state in localStorage for verification when HMRC redirects back
+            localStorage.setItem('hmrc_state', data.state);
+            // Redirect to HMRC authorization page
+            window.location.href = data.url;
+        },
+        onError: (error) => {
+            console.error('Failed to connect to HMRC:', error);
+            toast.error('Failed to connect to HMRC. Please try again.');
+        },
+    });
+
     const form = useForm<InsertHMRC>({
         resolver: zodResolver(insertHMRCSchema),
         defaultValues: { ...user },
     });
+
     function onSubmit(values: InsertHMRC) {
         setStepFormData((prev) => ({
             ...prev,
             step4: values,
         }));
     }
+
+    const handleConnectToHmrc = async () => {
+        try {
+            // Validate form before connecting
+            const isValid = await form.trigger();
+            if (!isValid) {
+                toast.error('Please fill in all required fields correctly');
+                return;
+            }
+
+            // Get form values
+            const formValues = form.getValues();
+
+            // Connect to HMRC
+            connectToHmrc();
+        } catch (error) {
+            console.error('Error connecting to HMRC:', error);
+            toast.error('An error occurred while connecting to HMRC');
+        }
+    };
+
     return (
         <>
             <div className="text-center">
@@ -130,9 +171,12 @@ export default function Step4({
                                         type="button"
                                         size={'xl'}
                                         className="text-base w-full"
-                                        onClick={() => setStep('step5')}
+                                        onClick={handleConnectToHmrc}
+                                        disabled={isPending}
                                     >
-                                        Connect to HMRC
+                                        {isPending
+                                            ? 'Connecting...'
+                                            : 'Connect to HMRC'}
                                     </Button>
                                 </div>
                             </div>

@@ -1,14 +1,15 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 // src/common/pipes/zod-validation.pipe.ts
 import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
-import { ZodError, ZodSchema } from 'zod/v3';
+import { z, ZodError } from 'zod';
+// import { ZodError, ZodSchema } from 'zod/v3';
 
 @Injectable()
 export class ZodValidationPipe implements PipeTransform {
-    constructor(private schema: ZodSchema) {}
+    constructor(private schema: z.ZodSchema) {}
 
     transform(value: unknown) {
         try {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-return
             return this.schema.parse(value);
         } catch (error) {
             if (error instanceof ZodError) {
@@ -16,8 +17,8 @@ export class ZodValidationPipe implements PipeTransform {
                     (err) => `${err.path.join('.')}: ${err.message}`,
                 );
                 throw new BadRequestException({
-                    message: 'Validation failed',
-                    errors: messages,
+                    message: 'Validation failed 222',
+                    error: messages,
                 });
             }
             throw new BadRequestException('Validation failed');

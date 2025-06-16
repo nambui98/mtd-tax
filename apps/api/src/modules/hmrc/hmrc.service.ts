@@ -32,8 +32,8 @@ export class HmrcService {
         this.redirectUri =
             this.configService.get<string>('HMRC_REDIRECT_URI') || '';
         this.baseUrl = this.configService.get<string>('HMRC_BASE_URL') || '';
-        this.tokenUrl = `${this.baseUrl}/oauth/token`;
         this.apiUrl = this.configService.get<string>('HMRC_API_URL') || '';
+        this.tokenUrl = `${this.apiUrl}/oauth/token`;
     }
 
     getAuthorizationUrl(state: string): string {
@@ -74,7 +74,9 @@ export class HmrcService {
             );
 
             const { access_token, refresh_token, expires_in } = response.data;
-
+            console.log('====================================1');
+            console.log(response.data);
+            console.log('====================================1');
             // Store tokens in database
             await this.db.insert(hmrcTokensTable).values({
                 userId,
@@ -221,5 +223,43 @@ export class HmrcService {
         } catch (error) {
             throw new BadRequestException('Failed to fetch VAT liabilities');
         }
+    }
+
+    async hmrcHello() {
+        const response = await axios.get(
+            'https://test-api.service.hmrc.gov.uk/hello/world',
+            {
+                headers: {
+                    // Authorization: `Bearer ${this.clientId}`,
+                    Accept: 'application/vnd.hmrc.1.0+json',
+                    // Accept: 'application/json',
+                },
+            },
+        );
+        console.log(response.data);
+        return response.data;
+    }
+
+    async hmrcInvitation() {
+        const response = await axios.post(
+            // `${this.apiUrl}/organisations/vat/invitations`,
+            'https://test-api.service.hmrc.gov.uk/agents/ARN1234567/invitations',
+            {
+                service: ['MTD-VAT'],
+                clientType: 'business',
+                clientIdType: 'vrn',
+                clientId: '101747696',
+                knownFact: '2007-05-18',
+            },
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/vnd.hmrc.1.0+json',
+                    Authorization: `Bearer ${this.clientId}`,
+                },
+            },
+        );
+        console.log(response.data);
+        return response.data;
     }
 }

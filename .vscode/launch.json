@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "Debug NestJS",
+            "runtimeExecutable": "pnpm",
+            "runtimeArgs": ["dev"],
+            "sourceMaps": true,
+            "envFile": "${workspaceFolder}/.env",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "protocol": "auto",
+            "restart": true,
+            "port": 9229,
+            "autoAttachChildProcesses": true
+        }
+    ]
+}

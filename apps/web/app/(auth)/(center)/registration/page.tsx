@@ -1,13 +1,17 @@
 import React from 'react';
-import Step1 from './components/step-1';
-import Content from './components/content';
+import Content, { Step } from './components/content';
 
-type Props = {};
+// type Props = {
+//     searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+type Props = {
+    searchParams: Promise<{ step: Step }>;
+};
 
-export default function RegistrationPage({}: Props) {
+export default async function RegistrationPage({ searchParams }: Props) {
+    const { step } = await searchParams;
     return (
         <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-            <Content />
+            <Content step={step} />
         </div>
     );
 }

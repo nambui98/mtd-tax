@@ -24,12 +24,7 @@ const createSignInFormSchema = (isOtpRequired: boolean) =>
         email: z
             .string({ required_error: 'Email is required' })
             .email({ message: 'Invalid email address' }),
-        otp: isOtpRequired
-            ? z
-                  .string({ required_error: 'OTP is required' })
-                  .min(8, { message: 'OTP must be 8 digits' })
-                  .max(8)
-            : z.string().optional(),
+        password: z.string({ required_error: 'Password is required' }),
         rememberMe: z.boolean().optional(),
     });
 
@@ -64,7 +59,7 @@ export default function SignInForm() {
         resolver: zodResolver(signInFormSchema),
         defaultValues: {
             email: '',
-            otp: '',
+            password: '',
             rememberMe: false,
         },
         // values: {
@@ -75,26 +70,23 @@ export default function SignInForm() {
         // },
     });
 
-    const verifyOtpMutation = useMutation({
+    const signInMutation = useMutation({
         mutationFn: ({
             email,
-            otp,
-            session,
+            password,
         }: {
             email: string;
-            otp: string;
-            session: string;
+            password: string;
         }) =>
-            signIn('email-otp', {
+            signIn('local', {
                 redirect: false,
                 email,
-                otp,
-                session,
+                password,
             }),
         onSuccess: async (data) => {
             if (data?.ok) {
                 toast.success('Signed in successfully');
-                router.refresh();
+                router.push('/dashboard');
             } else {
                 toast.error('Verification failed', {
                     description:
@@ -110,52 +102,13 @@ export default function SignInForm() {
         },
     });
 
-    // Request OTP
-    const handleRequestOtp = (email: string) => {
-        debugger;
-        if (!email) {
-            form.setError('email', {
-                type: 'manual',
-                message: 'Please enter your email address',
-            });
-            return;
-        }
-
-        requestOtpMutation.mutate(email);
-    };
-
-    // Verify OTP
-    const handleVerifyOtp = (otp?: string) => {
-        const email = form.getValues('email');
-        if (!otp || otp.length !== 8) {
-            form.setError('otp', {
-                type: 'manual',
-                message: 'Please enter the 8-digit verification code',
-            });
-            return;
-        }
-        if (!requestOtpMutation.data?.session) {
-            toast.error('Session expired', {
-                description: 'Please request a new verification code',
-            });
-            return;
-        }
-
-        verifyOtpMutation.mutate({
-            email,
-            otp,
-            session: requestOtpMutation.data.session,
+    const onSubmit = (data: TSignInFormSchema) => {
+        signInMutation.mutate({
+            email: data.email,
+            password: data.password,
         });
     };
 
-    const onSubmit = (data: TSignInFormSchema) => {
-        if (requestOtpMutation.data?.session) {
-            handleVerifyOtp(data.otp);
-        } else {
-            handleRequestOtp(data.email);
-        }
-    };
-    console.log(requestOtpMutation.data?.session);
     return (
         <div className="max-w-md w-full space-y-8">
             <div className="text-center">
@@ -193,51 +146,23 @@ export default function SignInForm() {
                                     requestOtpMutation.isPending
                                 }
                             />
-                            {requestOtpMutation.data ? (
-                                <div className="space-y-4">
-                                    <CustomFormField
-                                        control={form.control}
-                                        name="otp"
-                                        type="text"
-                                        label="Enter verification code"
-                                        placeholder="Enter the 8-digit verification code"
-                                    />
-                                    <Button
-                                        type="submit"
-                                        className="w-full text-base font-semibold leading-6"
-                                        size="xl"
-                                        disabled={verifyOtpMutation.isPending}
-                                    >
-                                        {verifyOtpMutation.isPending
-                                            ? 'Verifying...'
-                                            : 'Verify & Sign in'}
-                                    </Button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            form.setValue('otp', '');
-                                            form.setValue('email', '');
-                                            requestOtpMutation.reset();
-                                        }}
-                                        className="text-xs text-center w-full text-primary hover:underline"
-                                    >
-                                        Use a different email address
-                                    </button>
-                                </div>
-                            ) : (
-                                <>
-                                    <Button
-                                        type="submit"
-                                        className="w-full text-base font-semibold leading-6"
-                                        size="xl"
-                                        disabled={requestOtpMutation.isPending}
-                                    >
-                                        {requestOtpMutation.isPending
-                                            ? 'Sending code...'
-                                            : 'Send Verification Code'}
-                                    </Button>
-                                </>
-                            )}
+                            <CustomFormField
+                                control={form.control}
+                                name="password"
+                                type="password"
+                                placeholder="Enter your password"
+                                disabled={signInMutation.isPending}
+                            />
+                            <Button
+                                type="submit"
+                                className="w-full text-base font-semibold leading-6"
+                                size="xl"
+                                disabled={signInMutation.isPending}
+                            >
+                                {signInMutation.isPending
+                                    ? 'Signing in...'
+                                    : 'Sign in'}
+                            </Button>
                         </form>
                     </Form>
 

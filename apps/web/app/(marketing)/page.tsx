@@ -11,12 +11,6 @@ import Support from './components/support';
 import Footer from './components/footer';
 
 export default async function Page() {
-    const data = await fetch('http://localhost:8000/api/v1/users');
-    const json = await data.json();
-    const users: User[] = json.data;
-    console.log('====================================');
-    console.log(json.data);
-    console.log('====================================');
     return (
         <>
             <Navigation />
@@ -27,7 +21,6 @@ export default async function Page() {
             <Cta />
             <Faq />
             <Support />
-
             <Footer />
         </>
     );

@@ -17,6 +17,8 @@ import Step4 from './step-4';
 import Step5 from './step-5';
 import Step6 from './step-6';
 import StepProgress from './step-progress';
+import { signIn } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 
 export type Step = 'step1' | 'step2' | 'step3' | 'step4' | 'step5' | 'step6';
 export type StepFormData = {
@@ -27,8 +29,8 @@ export type StepFormData = {
     step3: InsertUser | null;
     step4: InsertHMRC | null;
 };
-export default function Content() {
-    const [step, setStep] = useState<Step>('step1');
+export default function Content({ step: initialStep }: { step?: Step }) {
+    const [step, setStep] = useState<Step>(initialStep || 'step1');
     const [stepFormData, setStepFormData] = useState<StepFormData>({
         step1: {
             practiceType: null,
@@ -37,6 +39,7 @@ export default function Content() {
         step3: null,
         step4: null,
     });
+    const router = useRouter();
     const {
         mutate: signupMutation,
         isPending: isSigningUp,
@@ -45,6 +48,12 @@ export default function Content() {
         mutationFn: signup,
         onSuccess: () => {
             toast.success('Signup successful');
+            signIn('local', {
+                redirect: false,
+                email: stepFormData.step3?.email || '',
+                password: stepFormData.step3?.password || '',
+            });
+            setStep('step4');
         },
         onError: (error) => {
             toast.error(error.message);
@@ -69,7 +78,6 @@ export default function Content() {
                 ...stepFormData.step2!,
             },
         };
-        debugger;
         signupMutation(data);
     };
     const getCurrentStep = () => {
@@ -108,7 +116,7 @@ export default function Content() {
                     user={stepFormData.step3}
                 />
             ),
-            step5: <Step5 />,
+            step5: <Step5 onNext={() => setStep('step6')} />,
             step6: <Step6 />,
         };
         return mapStepToComponent[step];

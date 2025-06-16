@@ -18,13 +18,19 @@ import { LocalAuthGuard } from '../../common/guards/local-auth.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
-    signupSchema,
     loginSchema,
     verifyOtpSchema,
     forgotPasswordSchema,
     resetPasswordSchema,
     refreshTokensSchema,
 } from './auth.schema';
+import {
+    InsertCompany,
+    insertCompanySchema,
+    InsertUser,
+    insertUserSchema,
+} from '@workspace/database/dist/schema';
+import z from 'zod';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -62,28 +68,17 @@ export class AuthController {
     })
     @ApiResponse({ status: 400, description: 'Invalid input data' })
     async signup(
-        @Body(new ZodValidationPipe(signupSchema))
+        @Body(
+            new ZodValidationPipe(
+                z.object({
+                    user: insertUserSchema,
+                    company: insertCompanySchema,
+                }),
+            ),
+        )
         signupDto: {
-            user: {
-                email: string;
-                firstName: string;
-                lastName: string;
-                password: string;
-                confirmPassword: string;
-                phoneNumber?: string;
-                jobTitle?: string;
-                practiceType?: string;
-            };
-            company?: {
-                name: string;
-                companyNumber?: string;
-                vatNumber?: string;
-                addressLine1: string;
-                addressLine2?: string;
-                city: string;
-                postcode: string;
-                phoneNumber?: string;
-            };
+            user: InsertUser;
+            company: InsertCompany;
         },
     ) {
         return this.authService.signup(signupDto);

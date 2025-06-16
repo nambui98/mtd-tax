@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import React from 'react';
 
 type Props = {};
@@ -34,12 +35,12 @@ export default function Navigation({}: Props) {
                         >
                             Support
                         </a>
-                        <a
-                            href="#"
+                        <Link
+                            href="/sign-in"
                             className="text-gray-600 hover:text-primary transition-colors"
                         >
                             Sign In
-                        </a>
+                        </Link>
                         <a
                             href="#register"
                             className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-dark transition-colors"

@@ -26,7 +26,16 @@ export type AxiosErrorData = {
 
 // Add request interceptor for authentication
 api.interceptors.request.use(
-    async (config: InternalAxiosRequestConfig) => {
+    async (config: InternalAxiosRequestConfig<{ skipAuth?: boolean }>) => {
+        // Check if auth should be skipped
+        const skipAuth = config.headers.skipAuth;
+        console.log('====================================');
+        console.log(skipAuth);
+        console.log('====================================');
+        if (skipAuth) {
+            return config;
+        }
+
         let session = null;
         if (typeof window !== 'undefined') {
             session = await getSession();
