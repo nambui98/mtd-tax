@@ -1,6 +1,6 @@
-# shadcn/ui monorepo template
+# monorepo
 
-This template is for creating a monorepo with shadcn/ui.
+Made by [nambui98](https://github.com/nambui98)
 
 ## Usage
 
@@ -27,5 +27,38 @@ Your `tailwind.config.ts` and `globals.css` are already set up to use the compon
 To use the components in your app, import them from the `ui` package.
 
 ```tsx
-import { Button } from "@workspace/ui/components/button"
+import { Button } from '@workspace/ui/components/button';
 ```
+
+## Development
+
+```bash
+# Start development server
+pnpm dev
+
+# Build for production
+pnpm build
+```
+
+## Drizzle CLI Commands
+
+Here are some useful Drizzle CLI commands for database management:
+
+```bash
+# Generate migrations
+pnpm db:generate
+
+# Push schema changes to database
+pnpm db:push
+
+# Run migrations
+pnpm db:migrate
+
+# Open Drizzle Studio (GUI for database management)
+pnpm db:studio
+
+# Check database schema
+pnpm db:check
+```
+
+For more information about Drizzle CLI, visit the [official documentation](https://orm.drizzle.team/docs/overview).
