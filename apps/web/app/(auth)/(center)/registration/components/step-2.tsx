@@ -8,7 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import {
     InsertCompany,
     insertCompanySchema,
-} from '@workspace/database/dist/schema/company';
+} from '@workspace/database/dist/schema/companies';
 import { Step, StepFormData } from './content';
 
 type Props = {

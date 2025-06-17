@@ -1,11 +1,9 @@
+import { Env } from '@/lib/env';
 import { api } from './api';
-
-const API_URL =
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 export const hmrcService = {
     async connectToHmrc() {
-        const response = await api.get(`${API_URL}/hmrc/authorize`, {
+        const response = await api.get(`/hmrc/authorize`, {
             headers: {
                 skipAuth: true,
             },
@@ -14,7 +12,7 @@ export const hmrcService = {
     },
 
     async exchangeCodeForToken(code: string) {
-        const response = await api.get(`${API_URL}/hmrc/callback`, {
+        const response = await api.get(`/hmrc/callback`, {
             params: {
                 code,
             },
@@ -23,24 +21,20 @@ export const hmrcService = {
     },
 
     getVatObligations: async (vrn: string) => {
-        const response = await api.get(
-            `${API_URL}/hmrc/vat/obligations?vrn=${vrn}`,
-        );
+        const response = await api.get(`/hmrc/vat/obligations?vrn=${vrn}`);
         return response;
     },
 
     submitVatReturn: async (vrn: string, returnData: any) => {
         const response = await api.post(
-            `${API_URL}/hmrc/vat/returns?vrn=${vrn}`,
+            `/hmrc/vat/returns?vrn=${vrn}`,
             returnData,
         );
         return response;
     },
 
     getVatLiabilities: async (vrn: string) => {
-        const response = await api.get(
-            `${API_URL}/hmrc/vat/liabilities?vrn=${vrn}`,
-        );
+        const response = await api.get(`/hmrc/vat/liabilities?vrn=${vrn}`);
         return response;
     },
 };

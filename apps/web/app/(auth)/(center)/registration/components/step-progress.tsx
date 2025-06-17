@@ -12,6 +12,8 @@ export default function StepProgress({ currentStep }: Props) {
         step2: 2,
         step3: 3,
         step4: 4,
+        step5: 5,
+        step6: 6,
     };
     return (
         <div className="flex items-center justify-center mb-4">

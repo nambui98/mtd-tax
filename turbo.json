@@ -5,7 +5,27 @@
         "build": {
             "dependsOn": ["^build"],
             "inputs": ["$TURBO_DEFAULT$", ".env*"],
-            "outputs": [".next/**", "!.next/cache/**"]
+            "outputs": [".next/**", "!.next/cache/**"],
+            "env": [
+                "NODE_ENV",
+                "NEXT_PUBLIC_BACKEND_API_URL",
+                "NEXT_PUBLIC_APP_URL",
+                "NEXTAUTH_SECRET",
+                "NEXTAUTH_URL",
+                "DATABASE_URL",
+                "JWT_SECRET",
+                "JWT_EXPIRES_IN",
+                "JWT_REFRESH_SECRET",
+                "JWT_REFRESH_EXPIRES_IN",
+                "MAIL_USER",
+                "MAIL_PASSWORD",
+                "MAIL_FROM",
+                "HMRC_CLIENT_ID",
+                "HMRC_CLIENT_SECRET",
+                "HMRC_REDIRECT_URI",
+                "HMRC_BASE_URL",
+                "HMRC_API_URL"
+            ]
         },
         "lint": {
             "dependsOn": ["^lint"]
@@ -25,15 +45,19 @@
                 "NEXT_PUBLIC_API_URL"
             ]
         },
-        "build-database": {
+        "build:database": {
             "cache": false,
             "persistent": true,
             "env": ["DATABASE_URL"]
         },
-        "build-be": {
+        "build:be": {
             "cache": false,
             "persistent": true,
             "env": ["DATABASE_URL"]
+        },
+        "start:be": {
+            "cache": false,
+            "persistent": true
         },
         "start": {
             "cache": false,
@@ -63,5 +87,25 @@
             "cache": false,
             "env": ["DATABASE_URL"]
         }
-    }
+    },
+    "globalEnv": [
+        "NODE_ENV",
+        "NEXT_PUBLIC_BACKEND_API_URL",
+        "NEXT_PUBLIC_APP_URL",
+        "NEXTAUTH_SECRET",
+        "NEXTAUTH_URL",
+        "DATABASE_URL",
+        "JWT_SECRET",
+        "JWT_EXPIRES_IN",
+        "JWT_REFRESH_SECRET",
+        "JWT_REFRESH_EXPIRES_IN",
+        "MAIL_USER",
+        "MAIL_PASSWORD",
+        "MAIL_FROM",
+        "HMRC_CLIENT_ID",
+        "HMRC_CLIENT_SECRET",
+        "HMRC_REDIRECT_URI",
+        "HMRC_BASE_URL",
+        "HMRC_API_URL"
+    ]
 }

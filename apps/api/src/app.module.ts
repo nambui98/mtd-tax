@@ -9,12 +9,18 @@ import { CompaniesModule } from './modules/companies/companies.module';
 import { envSchema } from './config/env.schema';
 import { RolesModule } from './modules/roles/roles.module';
 import { HmrcModule } from './modules/hmrc/hmrc.module';
+import { join } from 'path';
 
 @Module({
     imports: [
         ConfigModule.forRoot({
             isGlobal: true,
-            envFilePath: '../../../.env',
+            envFilePath: [
+                join(process.cwd(), 'apps/api/.env.local'),
+                join(process.cwd(), '.env.local'),
+                join(process.cwd(), '.env'),
+            ],
+            expandVariables: true,
             validate: (config) => {
                 const result = envSchema.safeParse(config);
                 if (!result.success) {
