@@ -4,6 +4,7 @@ import { ConsoleLogger, Logger, VersioningType } from '@nestjs/common';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule, {
@@ -15,20 +16,34 @@ async function bootstrap() {
 
     // app.use(helmet());
     app.enableCors({
-        origin: process.env.ALLOWED_ORIGINS?.split(',') || [
+        origin: [
+            'https://fe-production-8c9c.up.railway.app',
             'http://localhost:3000',
         ],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: [
+            'Content-Type',
+            'Accept',
+            'Authorization',
+            'skipauth',
+            'X-Requested-With',
+            'Origin',
+        ],
+        exposedHeaders: ['Content-Range', 'X-Content-Range'],
         credentials: true,
+        maxAge: 3600,
     });
 
     // Performance
     // app.use(compression());
 
     // Rate limiting
-    // app.use(rateLimit({
-    //   windowMs: 15 * 60 * 1000, // 15 minutes
-    //   max: 100, // limit each IP to 100 requests per windowMs
-    // }));
+    // app.use(
+    //     rateLimit({
+    //         windowMs: 15 * 60 * 1000, // 15 minutes
+    //         max: 100, // limit each IP to 100 requests per windowMs
+    //     }),
+    // );
 
     app.setGlobalPrefix('api');
 
@@ -44,6 +59,9 @@ async function bootstrap() {
     // Global interceptors
     app.useGlobalInterceptors(new ResponseInterceptor());
 
+    // Enable validation
+    app.useGlobalPipes(new ValidationPipe());
+
     const config = new DocumentBuilder()
         .setTitle('API Documentation')
         .setDescription('The API description')
@@ -53,12 +71,12 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document);
 
-    await app.listen(process.env.PORT ?? 8000);
+    await app.listen(process.env.PORT || 3001);
     logger.log(
-        `Application is running on: http://localhost:${process.env.PORT ?? 8000}`,
+        `Application is running on: http://localhost:${process.env.PORT || 3000}`,
     );
     logger.log(
-        `Swagger documentation: http://localhost:${process.env.PORT ?? 8000}/api/docs`,
+        `Swagger documentation: http://localhost:${process.env.PORT || 3000}/api/docs`,
     );
 }
 void bootstrap();

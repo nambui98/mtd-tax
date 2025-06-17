@@ -33,9 +33,9 @@ import { join } from 'path';
                 return result.data;
             },
         }),
-        UsersModule,
         DatabaseModule,
         AuthModule,
+        UsersModule,
         CompaniesModule,
         HmrcModule,
         RolesModule,
