@@ -21,23 +21,23 @@ import { LocalStrategy } from './strategies/local.strategy';
             }),
             inject: [ConfigService],
         }),
+
         MailerModule.forRootAsync({
             imports: [ConfigModule],
+
             useFactory: (configService: ConfigService) => ({
                 transport: {
-                    host: configService.get('MAIL_HOST'),
-                    port: configService.get('MAIL_PORT'),
-                    secure: true,
+                    service: 'gmail',
                     auth: {
-                        user: configService.get('MAIL_USER'),
-                        pass: configService.get('MAIL_PASSWORD'),
+                        user: configService.get<string>('MAIL_USER'),
+                        pass: configService.get<string>('MAIL_PASSWORD'),
                     },
                 },
                 defaults: {
-                    from: `"No Reply" <${configService.get('MAIL_FROM')}>`,
+                    from: `"No Reply" <${configService.get<string>('MAIL_FROM')}>`,
                 },
                 template: {
-                    dir: join(__dirname, 'templates'),
+                    dir: join(__dirname, '..', 'templates'),
                     adapter: new HandlebarsAdapter(),
                     options: {
                         strict: true,
