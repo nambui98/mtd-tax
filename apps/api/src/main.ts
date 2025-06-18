@@ -18,6 +18,7 @@ async function bootstrap() {
     app.enableCors({
         origin: [
             'https://fe-production-8c9c.up.railway.app',
+            'https://dev-12345.aatax.ai',
             'http://localhost:3000',
         ],
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -71,12 +72,12 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document);
 
-    await app.listen(process.env.PORT || 3001);
+    await app.listen(process.env.PORT || 8000);
     logger.log(
-        `Application is running on: http://localhost:${process.env.PORT || 3000}`,
+        `Application is running on: http://localhost:${process.env.PORT || 8000}`,
     );
     logger.log(
-        `Swagger documentation: http://localhost:${process.env.PORT || 3000}/api/docs`,
+        `Swagger documentation: http://localhost:${process.env.PORT || 8000}/api/docs`,
     );
 }
 void bootstrap();

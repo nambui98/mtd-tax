@@ -12,6 +12,7 @@ export async function signup(data: {
     company: InsertCompany;
 }) {
     console.log(data);
+    console.log(Env.NEXT_PUBLIC_BACKEND_API_URL);
     const response = await fetch(
         `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/signup`,
         {

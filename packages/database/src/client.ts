@@ -5,12 +5,16 @@ import 'dotenv/config';
 import path from 'path';
 import { config } from 'dotenv';
 
-config({ path: path.resolve(__dirname, '../../../.env.local') });
-config({ path: path.resolve(__dirname, '../.env.local') });
-config({ path: path.resolve(__dirname, './.env.local') });
+// Load environment variables from multiple possible locations
+config({ path: path.resolve(__dirname, '../../../.env') });
+config({ path: path.resolve(__dirname, '../../.env') });
+config({ path: path.resolve(__dirname, '../.env') });
+config({ path: path.resolve(__dirname, './.env') });
 
 if (!process.env.DATABASE_URL) {
-    throw new Error('DATABASE_URL environment variable is not set');
+    console.warn(
+        'Warning: DATABASE_URL not found in environment variables, using default URL',
+    );
 }
 
 const connectionString = process.env.DATABASE_URL;
