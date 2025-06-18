@@ -1,7 +1,9 @@
+'use client';
 import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { hmrcService } from '@/services/hmrc';
+import { useMutation } from '@tanstack/react-query';
 
 type Props = {
     onNext?: () => void;
@@ -38,7 +40,6 @@ export default function Step5({ onNext }: Props) {
                 }
 
                 // Clear the stored state
-                localStorage.removeItem('hmrc_state');
 
                 if (!code) {
                     setError('No authorization code received from HMRC');
@@ -52,6 +53,7 @@ export default function Step5({ onNext }: Props) {
                 if (response.status === 200) {
                     setIsSuccess(true);
                     toast.success('Successfully connected to HMRC');
+                    localStorage.removeItem('hmrc_state');
                     // Wait a moment before proceeding to next step
                     setTimeout(() => {
                         if (onNext) {
@@ -83,7 +85,7 @@ export default function Step5({ onNext }: Props) {
                 </h2>
                 <p className="text-red-600 mb-4">{error}</p>
                 <button
-                    onClick={() => router.push('/registration?step=step4')}
+                    // onClick={() => router.push('/registration?step=step4')}
                     className="bg-primary text-white py-3 px-6 rounded-lg font-medium hover:bg-primary-dark transition-colors"
                 >
                     Try Again

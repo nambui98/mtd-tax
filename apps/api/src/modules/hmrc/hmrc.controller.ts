@@ -35,9 +35,9 @@ export class HmrcController {
         };
     }
 
+    @UseGuards(JwtAuthGuard)
     @Get('callback')
     @ApiBearerAuth()
-    @UseGuards(JwtAuthGuard)
     @ApiOperation({ summary: 'Handle HMRC OAuth callback' })
     @ApiResponse({
         status: 200,
