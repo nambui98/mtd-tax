@@ -1,11 +1,13 @@
 'use client';
+import { UserNav } from '@/components/user-nav';
 import { Button } from '@workspace/ui/components/button';
-import { signOut } from 'next-auth/react';
+import { signOut, useSession } from 'next-auth/react';
 import React from 'react';
 
 type Props = {};
 
 export default function DashboardPage({}: Props) {
+    const { data: session } = useSession();
     return (
         <div className="flex min-h-screen">
             {/* <Button onClick={() => signOut()}>Sign Out</Button> */}
@@ -118,12 +120,13 @@ export default function DashboardPage({}: Props) {
                                 5
                             </div>
                         </div>
-                        <div
+                        {session && <UserNav session={session} />}
+                        {/* <div
                             onClick={() => signOut()}
                             className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-primary font-semibold cursor-pointer"
                         >
                             JD
-                        </div>
+                        </div> */}
                     </div>
                 </header>
 

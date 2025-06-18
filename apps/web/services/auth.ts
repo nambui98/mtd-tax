@@ -33,6 +33,22 @@ export type OtpVerifyResponse = {
     message?: string;
 };
 
+export type LoginOtpRequestResponse = {
+    message: string;
+};
+
+export type LoginOtpVerifyResponse = {
+    access_token: string;
+    refresh_token: string;
+    user: {
+        id: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+        roles: string[];
+    };
+};
+
 export const authService = {
     /**
      * Register a new user
@@ -73,28 +89,31 @@ export const authService = {
     },
 
     /**
-     * Verify OTP and login
+     * Request OTP for login (new method)
      */
-    verifyOtp: async (
+    requestLoginOtp: async (
+        email: string,
+    ): Promise<LoginOtpRequestResponse> => {
+        const response = await api.post('/auth/request-login-otp', { email });
+        return response.data;
+    },
+
+    /**
+     * Verify OTP for login
+     */
+    verifyOTP: async (
         email: string,
         otp: string,
-        session: string,
-    ): Promise<OtpVerifyResponse> => {
-        const response = await api.post('/auth/verify-otp', {
+    ): Promise<LoginOtpVerifyResponse> => {
+        const response = await api.post('/auth/verify-login-otp', {
             email,
             otp,
-            session,
         });
-        // Store tokens in localStorage
-        if (response.data.accessToken) {
-            localStorage.setItem('accessToken', response.data.accessToken);
 
-            if (response.data.refreshToken) {
-                localStorage.setItem(
-                    'refreshToken',
-                    response.data.refreshToken,
-                );
-            }
+        // Store tokens in localStorage
+        if (response.data.access_token) {
+            localStorage.setItem('accessToken', response.data.access_token);
+            localStorage.setItem('refreshToken', response.data.refresh_token);
         }
 
         return response.data;

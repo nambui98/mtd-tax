@@ -48,12 +48,7 @@ export default function Content({ step: initialStep }: { step?: Step }) {
         mutationFn: signup,
         onSuccess: () => {
             toast.success('Signup successful');
-            signIn('local', {
-                redirect: false,
-                email: stepFormData.step3?.email || '',
-                password: stepFormData.step3?.password || '',
-            });
-            setStep('step4');
+            // setStep('step4');
         },
         onError: (error) => {
             toast.error(error.message);
@@ -100,7 +95,7 @@ export default function Content({ step: initialStep }: { step?: Step }) {
             step3: (
                 <Step3
                     onPrevious={() => setStep('step2')}
-                    setStepFormData={setStepFormData}
+                    stepFormData={stepFormData}
                     handleSignup={handleSignup}
                     isSigningUp={isSigningUp}
                     isSignupSuccess={isSignupSuccess}

@@ -1,9 +1,9 @@
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { db } from './src/client';
 
 async function main() {
     console.log('Running migrations...');
-    await migrate(db, { migrationsFolder: './src/migrations' });
+    await migrate(db, { migrationsFolder: './drizzle' });
     console.log('Migrations completed!');
     process.exit(0);
 }

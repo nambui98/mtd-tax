@@ -31,10 +31,10 @@ export async function signup(data: {
     return result;
 }
 
-export async function verifyOTP(data: { otp: string; email: string }) {
+export async function verifyEmail(data: { otp: string; email: string }) {
     console.log(data);
     const response = await fetch(
-        `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/verify-otp`,
+        `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/verify-email`,
         {
             method: 'POST',
             headers: {

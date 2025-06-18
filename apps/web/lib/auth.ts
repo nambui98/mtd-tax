@@ -26,9 +26,6 @@ export const authOptions = {
                     );
 
                     const data = await response.json();
-                    console.log('====================================');
-                    console.log(data);
-                    console.log('====================================');
 
                     if (response.ok && data.data.access_token) {
                         return {
@@ -38,7 +35,7 @@ export const authOptions = {
                             email: data.data.user.email || credentials?.email,
                             accessToken: data.data.access_token,
                             refreshToken: data.data.refresh_token,
-                            expiresIn: data.data.expires_in * 1000,
+                            expiresIn: data.data.expires_in,
                         };
                     }
                     throw new Error(data.message);
@@ -55,33 +52,30 @@ export const authOptions = {
             credentials: {
                 email: { label: 'Email', type: 'text' },
                 otp: { label: 'Verification Code', type: 'text' },
-                session: { label: 'Session', type: 'text' },
             },
             async authorize(credentials) {
                 try {
                     const response = await fetch(
-                        `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/verify-otp`,
+                        `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/verify-login-otp`,
                         {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 email: credentials?.email,
                                 otp: credentials?.otp,
-                                session: credentials?.session,
                             }),
                         },
                     );
                     const data = await response.json();
-                    if (response.ok && data.tokens.accessToken) {
+                    if (response.ok && data.data.access_token) {
                         return {
-                            id: data.user.id,
-                            firstName: data.user.firstName,
-                            lastName: data.user.lastName,
-                            email: data.user.email || credentials?.email,
-                            accessToken: data.tokens.accessToken,
-                            refreshToken: data.tokens.refreshToken,
-                            tokenExpiry:
-                                Date.now() + data.tokens.expiresIn * 1000,
+                            id: data.data.user.id,
+                            firstName: data.data.user.firstName,
+                            lastName: data.data.user.lastName,
+                            email: data.data.user.email || credentials?.email,
+                            accessToken: data.data.access_token,
+                            refreshToken: data.data.refresh_token,
+                            expiresIn: data.data.expires_in,
                         };
                     } else {
                         throw new Error(data.error.message);

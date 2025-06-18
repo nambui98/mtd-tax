@@ -173,6 +173,188 @@ export class AuthController {
         return this.authService.verifyOTP(verifyOtpDto.email, verifyOtpDto.otp);
     }
 
+    @Post('verify-email')
+    @ApiOperation({ summary: 'Verify email with OTP' })
+    @ApiResponse({
+        status: 200,
+        description: 'Email successfully verified',
+        schema: {
+            type: 'object',
+            properties: {
+                message: {
+                    type: 'string',
+                    example: 'Email verified successfully',
+                },
+                access_token: {
+                    type: 'string',
+                    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+                refresh_token: {
+                    type: 'string',
+                    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+                user: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'number', example: 1 },
+                        email: { type: 'string', example: 'user@example.com' },
+                        firstName: { type: 'string', example: 'John' },
+                        lastName: { type: 'string', example: 'Doe' },
+                        emailVerified: { type: 'boolean', example: true },
+                        roles: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            example: ['user'],
+                        },
+                    },
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 401, description: 'Invalid or expired OTP' })
+    @ApiResponse({ status: 400, description: 'Email already verified' })
+    async verifyEmail(
+        @Body(
+            new ZodValidationPipe(
+                z.object({
+                    email: z.string().email('Invalid email format'),
+                    otp: z.string().length(6, 'OTP must be 6 digits'),
+                }),
+            ),
+        )
+        verifyEmailDto: {
+            email: string;
+            otp: string;
+        },
+    ) {
+        return this.authService.verifyEmail(
+            verifyEmailDto.email,
+            verifyEmailDto.otp,
+        );
+    }
+
+    @Post('resend-email-verification')
+    @ApiOperation({ summary: 'Resend email verification OTP' })
+    @ApiResponse({
+        status: 200,
+        description: 'Email verification code sent successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                message: {
+                    type: 'string',
+                    example: 'Email verification code sent successfully',
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 401, description: 'User not found' })
+    @ApiResponse({ status: 400, description: 'Email already verified' })
+    async resendEmailVerification(
+        @Body(
+            new ZodValidationPipe(
+                z.object({
+                    email: z.string().email('Invalid email format'),
+                }),
+            ),
+        )
+        resendEmailDto: {
+            email: string;
+        },
+    ) {
+        return this.authService.resendEmailVerification(resendEmailDto.email);
+    }
+
+    @Post('request-login-otp')
+    @ApiOperation({ summary: 'Request OTP for login' })
+    @ApiResponse({
+        status: 200,
+        description: 'Login OTP sent successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                message: {
+                    type: 'string',
+                    example: 'Login OTP sent successfully',
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 401, description: 'User not found' })
+    async requestLoginOtp(
+        @Body(
+            new ZodValidationPipe(
+                z.object({
+                    email: z.string().email('Invalid email format'),
+                }),
+            ),
+        )
+        requestOtpDto: {
+            email: string;
+        },
+    ) {
+        return this.authService.requestLoginOtp(requestOtpDto.email);
+    }
+
+    @Post('verify-login-otp')
+    @ApiOperation({ summary: 'Verify OTP for login' })
+    @ApiResponse({
+        status: 200,
+        description: 'Login successful',
+        schema: {
+            type: 'object',
+            properties: {
+                message: {
+                    type: 'string',
+                    example: 'Login successful',
+                },
+                access_token: {
+                    type: 'string',
+                    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+                refresh_token: {
+                    type: 'string',
+                    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                },
+                user: {
+                    type: 'object',
+                    properties: {
+                        id: { type: 'string', example: 'user-id' },
+                        email: { type: 'string', example: 'user@example.com' },
+                        firstName: { type: 'string', example: 'John' },
+                        lastName: { type: 'string', example: 'Doe' },
+                        roles: {
+                            type: 'array',
+                            items: { type: 'string' },
+                            example: ['user'],
+                        },
+                    },
+                },
+            },
+        },
+    })
+    @ApiResponse({ status: 401, description: 'Invalid or expired OTP' })
+    @ApiResponse({ status: 400, description: 'Email not verified' })
+    async verifyLoginOtp(
+        @Body(
+            new ZodValidationPipe(
+                z.object({
+                    email: z.string().email('Invalid email format'),
+                    otp: z.string().length(6, 'OTP must be 6 digits'),
+                }),
+            ),
+        )
+        verifyOtpDto: {
+            email: string;
+            otp: string;
+        },
+    ) {
+        return this.authService.verifyLoginOtp(
+            verifyOtpDto.email,
+            verifyOtpDto.otp,
+        );
+    }
+
     @Post('forgot-password')
     @ApiOperation({ summary: 'Request password reset' })
     @ApiResponse({

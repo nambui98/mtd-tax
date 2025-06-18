@@ -40,6 +40,7 @@ export const usersTable = pgTable('users', {
     authorityToAct: boolean('authority_to_act').default(false),
     hmrcConnectedAt: timestamp('hmrc_connected_at'),
     isActive: boolean('is_active').default(true),
+    emailVerified: boolean('email_verified').default(false),
     passwordHash: varchar('password_hash', { length: 255 }).notNull(),
     otpSecret: varchar('otp_secret', { length: 255 }),
     createdAt: timestamp('created_at').notNull().defaultNow(),

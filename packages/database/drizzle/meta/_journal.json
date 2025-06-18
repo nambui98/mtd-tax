@@ -57,6 +57,13 @@
       "when": 1749931357499,
       "tag": "20250614200237_clean_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1750261668185,
+      "tag": "20250618154748_complete_shocker",
+      "breakpoints": true
     }
   ]
 }

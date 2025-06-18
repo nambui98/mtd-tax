@@ -14,11 +14,11 @@ import {
 } from '@workspace/database/dist/schema/users';
 import { z } from 'zod/v3';
 import { useMutation } from '@tanstack/react-query';
-import { signInWithPassword, verifyOTP } from '../action';
+import { signInWithPassword, verifyEmail } from '../action';
 
 type Props = {
     onPrevious: VoidFunction;
-    setStepFormData: React.Dispatch<React.SetStateAction<StepFormData>>;
+    stepFormData: StepFormData;
     user: InsertUser | null;
     handleSignup: (step3: StepFormData['step3']) => void;
     onNextStep: () => void;
@@ -29,7 +29,7 @@ type Props = {
 export default function Step3({
     onPrevious,
     user,
-    setStepFormData,
+    stepFormData,
     handleSignup,
     isSigningUp,
     isSignupSuccess,
@@ -43,15 +43,15 @@ export default function Step3({
                 onNextStep();
             },
         });
-    const { mutate: verifyOTPMutation, isPending: isVerifyingOTP } =
+    const { mutate: verifyEmailMutation, isPending: isVerifyingEmail } =
         useMutation({
             mutationFn: (data: { otp: string; email: string }) =>
-                verifyOTP(data),
+                verifyEmail(data),
             onSuccess: async () => {
-                await signIn('credentials', {
+                await signIn('local', {
+                    redirect: false,
                     email: form.getValues('email'),
                     password: form.getValues('password'),
-                    redirect: false,
                 });
                 onNextStep();
             },
@@ -78,14 +78,14 @@ export default function Step3({
         defaultValues: { ...user },
     });
     function onSubmit(values: InsertUser & { otp?: string }) {
-        // if (isSignupSuccess) {
-        //     verifyOTPMutation({
-        //         otp: values.otp || '',
-        //         email: values.email || '',
-        //     });
-        // } else {
-        handleSignup(values);
-        // }
+        if (isSignupSuccess) {
+            verifyEmailMutation({
+                otp: values.otp || '',
+                email: values.email || '',
+            });
+        } else {
+            handleSignup(values);
+        }
     }
     return (
         <>
@@ -102,7 +102,7 @@ export default function Step3({
                         onSubmit={form.handleSubmit(onSubmit)}
                         className=" grid grid-cols-2 gap-4 items-start w-full"
                     >
-                        {/* {isSignupSuccess ? (
+                        {isSignupSuccess ? (
                             <div className="col-span-2 flex flex-col gap-4">
                                 <p className="text-lg font-bold text-gray-600 ">
                                     OTP sent to your email
@@ -117,12 +117,12 @@ export default function Step3({
                                 <Button
                                     size={'xl'}
                                     className="w-full font-medium text-base"
-                                    disabled={isVerifyingOTP || isSigningIn}
+                                    disabled={isVerifyingEmail || isSigningIn}
                                     type="submit"
                                 >
                                     {isSigningIn
                                         ? 'Signing In...'
-                                        : isVerifyingOTP
+                                        : isVerifyingEmail
                                           ? 'Verifying OTP...'
                                           : 'Verify OTP'}
                                     {isSigningIn && (
@@ -132,95 +132,95 @@ export default function Step3({
                                     )}
                                 </Button>
                             </div>
-                        ) : ( */}
-                        <>
-                            <DynamicFormField
-                                control={form.control}
-                                name={'firstName'}
-                                type={'text'}
-                                label="First Name"
-                                placeholder="John"
-                            />
-                            <DynamicFormField
-                                control={form.control}
-                                name={'lastName'}
-                                type={'text'}
-                                label="Last Name"
-                                placeholder="Doe"
-                            />
+                        ) : (
+                            <>
+                                <DynamicFormField
+                                    control={form.control}
+                                    name={'firstName'}
+                                    type={'text'}
+                                    label="First Name"
+                                    placeholder="John"
+                                />
+                                <DynamicFormField
+                                    control={form.control}
+                                    name={'lastName'}
+                                    type={'text'}
+                                    label="Last Name"
+                                    placeholder="Doe"
+                                />
 
-                            <div className="col-span-2">
-                                <DynamicFormField
-                                    control={form.control}
-                                    name={'email'}
-                                    type={'text'}
-                                    label="Email Address"
-                                    placeholder="john.doe@company.com"
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <DynamicFormField
-                                    control={form.control}
-                                    name={'phoneNumber'}
-                                    type={'text'}
-                                    label="Phone Number"
-                                    placeholder="+44 20 1234 5678"
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <DynamicFormField
-                                    control={form.control}
-                                    name={'jobTitle'}
-                                    type={'text'}
-                                    label="Job Title"
-                                    placeholder="Managing Director"
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <DynamicFormField
-                                    control={form.control}
-                                    name={'password'}
-                                    type={'password'}
-                                    label="Password"
-                                    placeholder="Create a strong password"
-                                />
-                            </div>
-                            <div className="col-span-2">
-                                <DynamicFormField
-                                    control={form.control}
-                                    name={'confirmPassword'}
-                                    type={'password'}
-                                    label="Confirm Password"
-                                    placeholder="Confirm your password"
-                                />
-                            </div>
-                            <div className="col-span-2 flex space-x-4 mt-6">
-                                <div className="flex-1">
-                                    <Button
-                                        variant={'secondary'}
-                                        size={'xl'}
-                                        className="text-base  bg-gray-100 text-gray-700 w-full  font-medium hover:bg-gray-200"
-                                        type="button"
-                                        onClick={onPrevious}
-                                    >
-                                        Back
-                                    </Button>
+                                <div className="col-span-2">
+                                    <DynamicFormField
+                                        control={form.control}
+                                        name={'email'}
+                                        type={'text'}
+                                        label="Email Address"
+                                        placeholder="john.doe@company.com"
+                                    />
                                 </div>
-                                <div className="flex-1">
-                                    <Button
-                                        size={'xl'}
-                                        className="w-full font-medium text-base"
-                                        disabled={isSigningUp}
-                                        type="submit"
-                                    >
-                                        {isSigningUp
-                                            ? 'Signing Up...'
-                                            : 'Continue'}
-                                    </Button>
+                                <div className="col-span-2">
+                                    <DynamicFormField
+                                        control={form.control}
+                                        name={'phoneNumber'}
+                                        type={'text'}
+                                        label="Phone Number"
+                                        placeholder="+44 20 1234 5678"
+                                    />
                                 </div>
-                            </div>
-                        </>
-                        {/* )} */}
+                                <div className="col-span-2">
+                                    <DynamicFormField
+                                        control={form.control}
+                                        name={'jobTitle'}
+                                        type={'text'}
+                                        label="Job Title"
+                                        placeholder="Managing Director"
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <DynamicFormField
+                                        control={form.control}
+                                        name={'password'}
+                                        type={'password'}
+                                        label="Password"
+                                        placeholder="Create a strong password"
+                                    />
+                                </div>
+                                <div className="col-span-2">
+                                    <DynamicFormField
+                                        control={form.control}
+                                        name={'confirmPassword'}
+                                        type={'password'}
+                                        label="Confirm Password"
+                                        placeholder="Confirm your password"
+                                    />
+                                </div>
+                                <div className="col-span-2 flex space-x-4 mt-6">
+                                    <div className="flex-1">
+                                        <Button
+                                            variant={'secondary'}
+                                            size={'xl'}
+                                            className="text-base  bg-gray-100 text-gray-700 w-full  font-medium hover:bg-gray-200"
+                                            type="button"
+                                            onClick={onPrevious}
+                                        >
+                                            Back
+                                        </Button>
+                                    </div>
+                                    <div className="flex-1">
+                                        <Button
+                                            size={'xl'}
+                                            className="w-full font-medium text-base"
+                                            disabled={isSigningUp}
+                                            type="submit"
+                                        >
+                                            {isSigningUp
+                                                ? 'Signing Up...'
+                                                : 'Continue'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </form>
                 </Form>
             </div>

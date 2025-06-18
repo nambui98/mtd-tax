@@ -17,33 +17,70 @@ import { LocalStrategy } from './strategies/local.strategy';
             imports: [ConfigModule],
             useFactory: (configService: ConfigService) => ({
                 secret: configService.get<string>('JWT_SECRET'),
-                signOptions: { expiresIn: '1d' },
+                signOptions: {
+                    expiresIn: configService.get<string>(
+                        'JWT_EXPIRES_IN',
+                        '1d',
+                    ),
+                },
             }),
             inject: [ConfigService],
         }),
 
         MailerModule.forRootAsync({
             imports: [ConfigModule],
+            useFactory: (configService: ConfigService) => {
+                const mailUser = configService.get<string>('MAIL_USER');
+                const mailPassword = configService.get<string>('MAIL_PASSWORD');
+                const mailFrom = configService.get<string>('MAIL_FROM_ADDRESS');
 
-            useFactory: (configService: ConfigService) => ({
-                transport: {
-                    service: 'gmail',
-                    auth: {
-                        user: configService.get<string>('MAIL_USER'),
-                        pass: configService.get<string>('MAIL_PASSWORD'),
+                if (!mailUser || !mailPassword || !mailFrom) {
+                    console.warn(
+                        'Mail configuration is incomplete. Email functionality may not work properly.',
+                    );
+                    return {
+                        transport: {
+                            host: 'localhost',
+                            port: 1025,
+                            ignoreTLS: true,
+                        },
+                        defaults: {
+                            from: 'noreply@example.com',
+                        },
+                    };
+                }
+
+                return {
+                    transport: {
+                        host: 'smtp.gmail.com',
+                        port: 587,
+                        secure: false,
+                        auth: {
+                            user: mailUser,
+                            pass: mailPassword,
+                        },
                     },
-                },
-                defaults: {
-                    from: `"No Reply" <${configService.get<string>('MAIL_FROM')}>`,
-                },
-                template: {
-                    dir: join(__dirname, '..', 'templates'),
-                    adapter: new HandlebarsAdapter(),
-                    options: {
-                        strict: true,
+                    defaults: {
+                        from: `"No Reply" <${mailFrom}>`,
                     },
-                },
-            }),
+                    template: {
+                        dir: join(
+                            __dirname,
+                            '..',
+                            '..',
+                            '..',
+                            'src',
+                            'modules',
+                            'auth',
+                            'templates',
+                        ),
+                        adapter: new HandlebarsAdapter(),
+                        options: {
+                            strict: false,
+                        },
+                    },
+                };
+            },
             inject: [ConfigService],
         }),
     ],

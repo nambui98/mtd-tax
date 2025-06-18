@@ -10,9 +10,13 @@ export const envSchema = z.object({
     JWT_REFRESH_EXPIRES_IN: z.string().min(1),
 
     // Mail
+    MAIL_HOST: z.string().min(1),
+    MAIL_PORT: z.coerce.number(),
+    MAIL_SECURE: z.coerce.boolean(),
     MAIL_USER: z.string().min(1),
     MAIL_PASSWORD: z.string().min(1),
-    MAIL_FROM: z.string(),
+    MAIL_FROM_NAME: z.string().min(1),
+    MAIL_FROM_ADDRESS: z.string().min(1),
 
     // HMRC
     HMRC_CLIENT_ID: z.string().min(1),
