@@ -10,7 +10,12 @@ import { relations } from 'drizzle-orm';
 import { usersTable } from './users';
 
 // Define roles enum
-export const userRoleEnum = pgEnum('user_role', ['admin', 'user']);
+export const userRoleEnum = pgEnum('user_role', [
+    'admin',
+    'user',
+    'staff',
+    'client',
+]);
 
 // Define roles table
 export const rolesTable = pgTable('roles', {

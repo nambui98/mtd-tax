@@ -196,6 +196,12 @@ export class AuthService {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 roles: userRoles.map((ur) => ur.roleName),
+                practiceType: user.practiceType,
+                hmrcConnected: user.hmrcConnected,
+                agentReferenceNumber: user.agentReferenceNumber,
+                utr: user.utr,
+                nino: user.nino,
+                hmrcConnectedAt: user.hmrcConnectedAt,
             },
         };
     }
@@ -251,6 +257,12 @@ export class AuthService {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 roles: userRoles.map((ur) => ur.roleName),
+                practiceType: user.practiceType,
+                hmrcConnected: user.hmrcConnected,
+                agentReferenceNumber: user.agentReferenceNumber,
+                utr: user.utr,
+                nino: user.nino,
+                hmrcConnectedAt: user.hmrcConnectedAt,
             },
         };
     }
@@ -335,6 +347,12 @@ export class AuthService {
                 lastName: user.lastName,
                 emailVerified: true,
                 roles: userRoles.map((ur) => ur.roleName),
+                practiceType: user.practiceType,
+                hmrcConnected: user.hmrcConnected,
+                agentReferenceNumber: user.agentReferenceNumber,
+                utr: user.utr,
+                nino: user.nino,
+                hmrcConnectedAt: user.hmrcConnectedAt,
             },
         };
     }
@@ -472,6 +490,12 @@ export class AuthService {
                 firstName: user.firstName,
                 lastName: user.lastName,
                 roles: userRoles.map((ur) => ur.roleName),
+                practiceType: user.practiceType,
+                hmrcConnected: user.hmrcConnected,
+                agentReferenceNumber: user.agentReferenceNumber,
+                utr: user.utr,
+                nino: user.nino,
+                hmrcConnectedAt: user.hmrcConnectedAt,
             },
         };
     }

@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConsoleLogger, Logger, VersioningType } from '@nestjs/common';
@@ -5,6 +7,7 @@ import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule, {
@@ -13,6 +16,10 @@ async function bootstrap() {
         }),
     });
     const logger = new Logger('Bootstrap');
+
+    const reflector = app.get('Reflector');
+
+    app.useGlobalGuards(new JwtAuthGuard(reflector));
 
     // app.use(helmet());
     app.enableCors({

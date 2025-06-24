@@ -626,104 +626,21 @@ const DateTimePicker = ({
 }: DateTimePickerProps & {
     ref?: React.RefObject<Partial<DateTimePickerRef> | null>;
 }) => {
-    const [month, setMonth] = React.useState<Date>(value ?? defaultPopupValue);
-    const buttonRef = useRef<HTMLButtonElement>(null);
-    const [displayDate, setDisplayDate] = React.useState<Date | undefined>(
-        value ?? undefined,
-    );
-    onMonthChange ||= onChange;
-
-    /**
-     * Makes sure display date updates when value change on
-     * parent component
-     */
-    useEffect(() => {
-        setDisplayDate(value);
-    }, [value]);
-
-    /**
-     * carry over the current time when a user clicks a new day
-     * instead of resetting to 00:00
-     */
-    const handleMonthChange = (newDay: Date | undefined) => {
-        if (!newDay) {
-            return;
-        }
-        if (!defaultPopupValue) {
-            newDay.setHours(
-                month?.getHours() ?? 0,
-                month?.getMinutes() ?? 0,
-                month?.getSeconds() ?? 0,
-            );
-            onMonthChange?.(newDay);
-            setMonth(newDay);
-            return;
-        }
-        const diff = newDay.getTime() - defaultPopupValue.getTime();
-        const diffInDays = diff / (1000 * 60 * 60 * 24);
-        const newDateFull = add(defaultPopupValue, {
-            days: Math.ceil(diffInDays),
-        });
-        newDateFull.setHours(
-            month?.getHours() ?? 0,
-            month?.getMinutes() ?? 0,
-            month?.getSeconds() ?? 0,
-        );
-        onMonthChange?.(newDateFull);
-        setMonth(newDateFull);
-    };
-
-    const onSelect = (newDay?: Date) => {
-        if (!newDay) {
-            return;
-        }
-        onChange?.(newDay);
-        setMonth(newDay);
-        setDisplayDate(newDay);
-    };
-
-    useImperativeHandle(
-        ref,
-        () => ({
-            ...buttonRef.current,
-            value: displayDate,
-        }),
-        [displayDate],
-    );
-
-    const initHourFormat = {
-        hour24:
-            displayFormat?.hour24 ??
-            `PPP HH:mm${!granularity || granularity === 'second' ? ':ss' : ''}`,
-        hour12:
-            displayFormat?.hour12 ??
-            `PP hh:mm${!granularity || granularity === 'second' ? ':ss' : ''} b`,
-    };
-
-    let loc = enUS;
-    const { options, localize, formatLong } = locale;
-    if (options && localize && formatLong) {
-        loc = {
-            ...enUS,
-            options,
-            localize,
-            formatLong,
-        };
-    }
-
+    const [open, setOpen] = React.useState(false);
     return (
-        <Popover>
+        <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild disabled={disabled}>
                 <Button
                     variant="outline"
-                    size="xl"
+                    size="lg"
                     role="combobox"
                     className={cn(
-                        'w-full font-medium rounded-[12px] text-sm text-black justify-between bg-white/80',
-                        !displayDate && 'text-80-black/50',
+                        'w-full font-medium rounded-[12px]  text-black justify-between bg-white/80',
+                        !value && 'text-80-black/50',
                     )}
                 >
-                    {displayDate ? (
+                    {value ? value.toLocaleDateString() : placeholder}
+                    {/* {displayDate ? (
                         format(
                             displayDate,
                             granularity === 'day'
@@ -737,47 +654,20 @@ const DateTimePicker = ({
                         )
                     ) : (
                         <span>{placeholder}</span>
-                    )}
+                    )} */}
                     <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                     mode="single"
-                    selected={displayDate}
-                    month={month}
-                    onSelect={(newDate) => {
-                        if (newDate) {
-                            newDate.setHours(
-                                month?.getHours() ?? 0,
-                                month?.getMinutes() ?? 0,
-                                month?.getSeconds() ?? 0,
-                            );
-                            onSelect(newDate);
-                        }
+                    selected={value}
+                    captionLayout="dropdown"
+                    onSelect={(date) => {
+                        onChange?.(date);
+                        setOpen(false);
                     }}
-                    onMonthChange={handleMonthChange}
-                    // yearRange={yearRange}
-                    locale={locale}
-                    disabled={disabledDate}
-                    {...props}
                 />
-                {granularity !== 'day' && (
-                    <div className="border-border border-t p-3">
-                        <TimePicker
-                            onChange={(value) => {
-                                onChange?.(value);
-                                setDisplayDate(value);
-                                if (value) {
-                                    setMonth(value);
-                                }
-                            }}
-                            date={month}
-                            hourCycle={hourCycle}
-                            granularity={granularity}
-                        />
-                    </div>
-                )}
             </PopoverContent>
         </Popover>
     );

@@ -7,6 +7,10 @@ import type {
 import { Button } from '@workspace/ui/components/button';
 import { Checkbox } from '@workspace/ui/components/checkbox';
 import {
+    RadioGroup,
+    RadioGroupItem,
+} from '@workspace/ui/components/radio-group';
+import {
     Command,
     CommandEmpty,
     CommandGroup,
@@ -34,6 +38,7 @@ import React from 'react';
 import { DateTimePicker } from './date-picker';
 import { Icons } from './icons';
 import { Switch } from '@workspace/ui/components/switch';
+import { Textarea } from '@workspace/ui/components/textarea';
 
 type Option = {
     label: string;
@@ -52,12 +57,15 @@ type CustomFormFieldProps<
         | 'password'
         | 'number'
         | 'switch'
-        | 'date';
+        | 'radio-group'
+        | 'date'
+        | 'textarea';
     label?: React.ReactNode;
     description?: string;
     options?: Option[];
     selectType?: 'single' | 'multiple';
     placeholder?: string;
+
     render?: ControllerProps<TFieldValues, TName>['render'];
 };
 
@@ -159,7 +167,7 @@ const CustomFormField = <
                         <PopoverTrigger asChild>
                             <Button
                                 variant="outline"
-                                size="xl"
+                                size="lg"
                                 role="combobox"
                                 className={cn(
                                     'w-full font-medium rounded-[12px] text-sm text-black justify-between bg-white/80',
@@ -216,6 +224,30 @@ const CustomFormField = <
                         </PopoverContent>
                     </Popover>
                 );
+            case 'radio-group':
+                return (
+                    <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex items-center gap-2"
+                    >
+                        {options?.map((option) => (
+                            <FormItem
+                                key={option.value}
+                                className="flex items-center gap-3"
+                            >
+                                <FormControl>
+                                    <RadioGroupItem value={option.value} />
+                                </FormControl>
+                                <FormLabel className="font-normal">
+                                    {option.label}
+                                </FormLabel>
+                            </FormItem>
+                        ))}
+                    </RadioGroup>
+                );
+            case 'textarea':
+                return <Textarea placeholder={placeholder} {...field} />;
             default:
                 return <input name={name} />;
         }

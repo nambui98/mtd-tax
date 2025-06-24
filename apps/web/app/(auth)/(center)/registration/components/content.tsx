@@ -6,6 +6,7 @@ import {
     InsertHMRC,
     InsertUser,
     PracticeType,
+    UserType,
 } from '@workspace/database';
 import { useState } from 'react';
 import { toast } from 'sonner';

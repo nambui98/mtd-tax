@@ -14,6 +14,15 @@ import {
 } from 'drizzle-zod';
 import z from 'zod/v3';
 
+export const userTypeEnum = pgEnum('user_type', [
+    'tier1_taxpayer',
+    'tier2_taxpayer',
+    'accountant',
+    'admin',
+]);
+
+export type UserType = (typeof userTypeEnum.enumValues)[number];
+
 export const practiceTypeEnum = pgEnum('practice_type', [
     'accountancy_practice',
     'bookkeeping_service',
@@ -29,6 +38,7 @@ export const usersTable = pgTable('users', {
     email: varchar('email', { length: 255 }).notNull().unique(),
     phoneNumber: varchar('phone_number', { length: 50 }),
     jobTitle: varchar('job_title', { length: 150 }),
+    userType: userTypeEnum('user_type').default('tier1_taxpayer'),
     practiceType: practiceTypeEnum('practice_type').default(
         'accountancy_practice',
     ),

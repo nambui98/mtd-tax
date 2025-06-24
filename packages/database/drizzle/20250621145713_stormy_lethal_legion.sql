@@ -1,0 +1,2 @@
+CREATE TYPE "public"."user_type" AS ENUM('tier1_taxpayer', 'tier2_taxpayer', 'accountant', 'admin');--> statement-breakpoint
+ALTER TABLE "users" ADD COLUMN "user_type" "user_type" DEFAULT 'tier1_taxpayer';

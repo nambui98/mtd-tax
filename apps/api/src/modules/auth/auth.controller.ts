@@ -15,7 +15,7 @@ import {
     ApiBearerAuth,
 } from '@nestjs/swagger';
 import { LocalAuthGuard } from '../../common/guards/local-auth.guard';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { JwtAuthGuard, Public } from '../../common/guards/jwt-auth.guard';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import {
     loginSchema,
@@ -37,6 +37,7 @@ import z from 'zod';
 export class AuthController {
     constructor(private readonly authService: AuthService) {}
 
+    @Public()
     @Post('signup')
     @ApiOperation({ summary: 'Register a new user' })
     @ApiResponse({
@@ -84,6 +85,7 @@ export class AuthController {
         return this.authService.signup(signupDto);
     }
 
+    @Public()
     @UseGuards(LocalAuthGuard)
     @Post('login')
     @ApiOperation({ summary: 'Login user' })
@@ -129,6 +131,7 @@ export class AuthController {
         return this.authService.login(loginDto.email, loginDto.password);
     }
 
+    @Public()
     @Post('verify-otp')
     @ApiOperation({ summary: 'Verify OTP for user' })
     @ApiResponse({
@@ -173,6 +176,7 @@ export class AuthController {
         return this.authService.verifyOTP(verifyOtpDto.email, verifyOtpDto.otp);
     }
 
+    @Public()
     @Post('verify-email')
     @ApiOperation({ summary: 'Verify email with OTP' })
     @ApiResponse({
@@ -233,6 +237,7 @@ export class AuthController {
         );
     }
 
+    @Public()
     @Post('resend-email-verification')
     @ApiOperation({ summary: 'Resend email verification OTP' })
     @ApiResponse({
@@ -265,6 +270,7 @@ export class AuthController {
         return this.authService.resendEmailVerification(resendEmailDto.email);
     }
 
+    @Public()
     @Post('request-login-otp')
     @ApiOperation({ summary: 'Request OTP for login' })
     @ApiResponse({
@@ -296,6 +302,7 @@ export class AuthController {
         return this.authService.requestLoginOtp(requestOtpDto.email);
     }
 
+    @Public()
     @Post('verify-login-otp')
     @ApiOperation({ summary: 'Verify OTP for login' })
     @ApiResponse({
@@ -355,6 +362,7 @@ export class AuthController {
         );
     }
 
+    @Public()
     @Post('forgot-password')
     @ApiOperation({ summary: 'Request password reset' })
     @ApiResponse({
@@ -380,6 +388,7 @@ export class AuthController {
         return this.authService.forgotPassword(forgotPasswordDto.email);
     }
 
+    @Public()
     @Post('reset-password')
     @ApiOperation({ summary: 'Reset password with token' })
     @ApiResponse({
@@ -409,6 +418,7 @@ export class AuthController {
         );
     }
 
+    @Public()
     @Post('refresh-tokens')
     @ApiOperation({ summary: 'Refresh access token' })
     @ApiResponse({

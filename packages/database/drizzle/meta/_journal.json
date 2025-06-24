@@ -64,6 +64,34 @@
       "when": 1750261668185,
       "tag": "20250618154748_complete_shocker",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1750517833632,
+      "tag": "20250621145713_stormy_lethal_legion",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1750517861757,
+      "tag": "20250621145741_handy_romulus",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1750783997594,
+      "tag": "20250624165317_wealthy_earthquake",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1750785021988,
+      "tag": "20250624171021_vengeful_elektra",
+      "breakpoints": true
     }
   ]
 }

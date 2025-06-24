@@ -17,6 +17,13 @@ declare module 'next-auth' {
             image?: string | null;
             firstName?: string | null;
             lastName?: string | null;
+            practiceType?: string | null;
+            hmrcConnected?: boolean | null;
+            agentReferenceNumber?: string | null;
+            utr?: string | null;
+            nino?: string | null;
+            hmrcConnectedAt?: Date | null;
+            isActive?: boolean | null;
         };
     }
 
@@ -33,6 +40,13 @@ declare module 'next-auth' {
         accessToken?: string;
         refreshToken?: string;
         expiresIn?: number;
+        practiceType?: string | null;
+        hmrcConnected?: boolean | null;
+        agentReferenceNumber?: string | null;
+        utr?: string | null;
+        nino?: string | null;
+        hmrcConnectedAt?: Date | null;
+        isActive?: boolean | null;
     }
 }
 
@@ -50,6 +64,13 @@ declare module 'next-auth/jwt' {
             email?: string | null;
             firstName?: string | null;
             lastName?: string | null;
+            practiceType?: string | null;
+            hmrcConnected?: boolean | null;
+            agentReferenceNumber?: string | null;
+            utr?: string | null;
+            nino?: string | null;
+            hmrcConnectedAt?: Date | null;
+            isActive?: boolean | null;
         };
         error?: string;
     }

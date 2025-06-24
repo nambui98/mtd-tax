@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Inject, Injectable } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../../database/database.module';
 import {
@@ -5,10 +6,13 @@ import {
     InsertHMRC,
     InsertUser,
     insertUserSchema,
+    rolesTable,
     UpdateUserDto,
     User,
+    userRolesTable,
     usersTable,
 } from '@workspace/database';
+import { eq } from 'drizzle-orm';
 
 @Injectable()
 export class UsersService {
@@ -35,9 +39,9 @@ export class UsersService {
         return user;
     }
 
-    async findAll() {
+    async findAll(where?: any) {
         // return `This action returns all users`;
-        return this.db.select().from(usersTable);
+        return this.db.select().from(usersTable).where(where);
     }
 
     findOne(id: number) {
@@ -51,5 +55,20 @@ export class UsersService {
 
     remove(id: number) {
         return `This action removes a #${id} user`;
+    }
+
+    async getStaffUsers() {
+        return this.db
+            .select({
+                id: usersTable.id,
+                firstName: usersTable.firstName,
+                lastName: usersTable.lastName,
+                email: usersTable.email,
+                roleName: rolesTable.name,
+            })
+            .from(usersTable)
+            .innerJoin(userRolesTable, eq(usersTable.id, userRolesTable.userId))
+            .innerJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id))
+            .where(eq(rolesTable.name, 'staff'));
     }
 }

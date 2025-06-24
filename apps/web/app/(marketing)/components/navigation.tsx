@@ -1,9 +1,20 @@
+'use client';
 import Link from 'next/link';
 import React from 'react';
+import { usePathname } from 'next/navigation';
+import { cn } from '@workspace/ui/lib/utils';
+import { useSession, signOut } from 'next-auth/react';
+import { Button } from '@workspace/ui/components/button';
 
 type Props = {};
 
 export default function Navigation({}: Props) {
+    const pathname = usePathname();
+    const { data: session } = useSession();
+
+    const handleLogout = async () => {
+        await signOut({ callbackUrl: '/' });
+    };
     return (
         <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -35,18 +46,40 @@ export default function Navigation({}: Props) {
                         >
                             Support
                         </a>
-                        <Link
-                            href="/sign-in"
-                            className="text-gray-600 hover:text-primary transition-colors"
-                        >
-                            Sign In
-                        </Link>
-                        <a
-                            href="#register"
-                            className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-dark transition-colors"
-                        >
-                            Get Started Free
-                        </a>
+                        {session ? (
+                            <>
+                                <Link
+                                    href="/dashboard"
+                                    className={cn(
+                                        'text-gray-600 hover:text-primary transition-colors',
+                                        pathname === '/dashboard' &&
+                                            'text-primary font-semibold underline',
+                                    )}
+                                >
+                                    Dashboard
+                                </Link>
+                                <Button onClick={handleLogout}>Log out</Button>
+                            </>
+                        ) : (
+                            <>
+                                <Link
+                                    href="/sign-in"
+                                    className={cn(
+                                        'text-gray-600 hover:text-primary transition-colors',
+                                        pathname === '/sign-in' &&
+                                            'text-primary font-semibold underline',
+                                    )}
+                                >
+                                    Sign In
+                                </Link>
+                                <a
+                                    href="#register"
+                                    className="bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-dark transition-colors"
+                                >
+                                    Get Started Free
+                                </a>
+                            </>
+                        )}
                     </div>
                     <div className="md:hidden">
                         <button className="text-gray-600">

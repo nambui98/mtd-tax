@@ -36,6 +36,13 @@ export const authOptions = {
                             accessToken: data.data.access_token,
                             refreshToken: data.data.refresh_token,
                             expiresIn: data.data.expires_in,
+                            practiceType: data.data.user.practiceType,
+                            hmrcConnected: data.data.user.hmrcConnected,
+                            agentReferenceNumber:
+                                data.data.user.agentReferenceNumber,
+                            utr: data.data.user.utr,
+                            nino: data.data.user.nino,
+                            hmrcConnectedAt: data.data.user.hmrcConnectedAt,
                         };
                     }
                     throw new Error(data.message);
@@ -76,6 +83,13 @@ export const authOptions = {
                             accessToken: data.data.access_token,
                             refreshToken: data.data.refresh_token,
                             expiresIn: data.data.expires_in,
+                            practiceType: data.data.user.practiceType,
+                            hmrcConnected: data.data.user.hmrcConnected,
+                            agentReferenceNumber:
+                                data.data.user.agentReferenceNumber,
+                            utr: data.data.user.utr,
+                            nino: data.data.user.nino,
+                            hmrcConnectedAt: data.data.user.hmrcConnectedAt,
                         };
                     } else {
                         throw new Error(data.error.message);
@@ -105,6 +119,12 @@ export const authOptions = {
                     email: user.email,
                     firstName: user.firstName,
                     lastName: user.lastName,
+                    practiceType: user.practiceType,
+                    hmrcConnected: user.hmrcConnected,
+                    agentReferenceNumber: user.agentReferenceNumber,
+                    utr: user.utr,
+                    nino: user.nino,
+                    hmrcConnectedAt: user.hmrcConnectedAt,
                 };
             }
 
@@ -122,6 +142,8 @@ export const authOptions = {
             session: Record<string, any>;
             token: Record<string, any>;
         }) {
+            console.log('session', session);
+            console.log('token', token);
             session.accessToken = token.accessToken;
             session.refreshToken = token.refreshToken;
             session.expiresAt = token.expiresAt;
