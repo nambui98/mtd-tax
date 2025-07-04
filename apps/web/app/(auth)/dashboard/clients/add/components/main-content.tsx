@@ -13,42 +13,49 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import CustomFormField from '@/components/custom-form-field';
 import { Switch } from '@workspace/ui/components/switch';
-import { Button } from '@workspace/ui/components/button';
-import { Plus, Save, X } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Button, LoadingButton } from '@workspace/ui/components/button';
+import { Loader2, Plus, Save, X } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { usersService } from '@/services/users';
+import {
+    InsertClient,
+    insertClientSchema,
+} from '@workspace/database/dist/schema/clients';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
-const formSchema = z.object({
-    clientType: z.string().min(1, { message: 'Client Type is required' }),
-    mtdStatus: z.boolean(),
-    title: z.string().min(1, { message: 'Title is required' }),
-    firstName: z.string().min(1, { message: 'First Name is required' }),
-    lastName: z.string().min(1, { message: 'Last Name is required' }),
-    dob: z.coerce.date({
-        message: 'Date of Birth is required',
-    }),
-    nino: z
-        .string()
-        .min(1, { message: 'National Insurance Number is required' }),
-    utr: z.string().min(1, { message: 'UTR is required' }),
-    email: z.string().email({ message: 'Invalid email address' }),
-    phone: z.string().min(1, { message: 'Phone Number is required' }),
-    addressLine1: z.string().min(1, { message: 'Address Line 1 is required' }),
-    addressLine2: z.string(),
-    city: z.string().min(1, { message: 'City/Town is required' }),
-    county: z.string(),
-    postcode: z.string().min(1, { message: 'Postcode is required' }),
-    assignedTo: z.string().optional(),
-    clientCategory: z.string().optional(),
-    notes: z.string().optional(),
-    sendWelcomeEmail: z.boolean(),
-    hmrcAuthorization: z.boolean(),
-});
+// const formSchema = z.object({
+//     clientType: z.string().min(1, { message: 'Client Type is required' }),
+//     mtdStatus: z.boolean(),
+//     title: z.string().min(1, { message: 'Title is required' }),
+//     firstName: z.string().min(1, { message: 'First Name is required' }),
+//     lastName: z.string().min(1, { message: 'Last Name is required' }),
+//     dob: z.coerce.date({
+//         message: 'Date of Birth is required',
+//     }),
+//     nino: z
+//         .string()
+//         .min(1, { message: 'National Insurance Number is required' }),
+//     utr: z.string().min(1, { message: 'UTR is required' }),
+//     email: z.string().email({ message: 'Invalid email address' }),
+//     phone: z.string().min(1, { message: 'Phone Number is required' }),
+//     addressLine1: z.string().min(1, { message: 'Address Line 1 is required' }),
+//     addressLine2: z.string(),
+//     city: z.string().min(1, { message: 'City/Town is required' }),
+//     county: z.string(),
+//     postcode: z.string().min(1, { message: 'Postcode is required' }),
+//     assignedTo: z.string().optional(),
+//     clientCategory: z.string().optional(),
+//     notes: z.string().optional(),
+//     sendWelcomeEmail: z.boolean(),
+//     hmrcAuthorization: z.boolean(),
+// });
 type Props = {};
 
 export default function MainContent({}: Props) {
-    const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
+    const router = useRouter();
+    const form = useForm<InsertClient>({
+        resolver: zodResolver(insertClientSchema),
         defaultValues: {
             clientType: 'individual',
             mtdStatus: true,
@@ -59,14 +66,14 @@ export default function MainContent({}: Props) {
             nino: '',
             utr: '',
             email: '',
-            phone: '',
+            phoneNumber: '',
             addressLine1: '',
             addressLine2: '',
             city: '',
             county: '',
             postcode: '',
             assignedTo: '',
-            clientCategory: '',
+            clientCategory: 'standard',
             notes: '',
             sendWelcomeEmail: true,
             hmrcAuthorization: false,
@@ -77,10 +84,24 @@ export default function MainContent({}: Props) {
         queryKey: ['staff-users'],
         queryFn: () => usersService.getStaffUsers(),
     });
+
+    const { mutate: createClient, isPending } = useMutation({
+        mutationFn: (client: InsertClient) => usersService.createClient(client),
+        onSuccess: () => {
+            toast.success('Client created successfully');
+            router.push('/dashboard/clients');
+        },
+        onError: () => {
+            toast.error('Failed to create client');
+        },
+    });
     console.log(staffUsers);
-    const onSubmit = (values: z.infer<typeof formSchema>) => {
+    const onSubmit = (values: InsertClient) => {
         console.log(values);
+        debugger;
+        createClient(values);
     };
+    console.log(form.formState.errors);
     return (
         <>
             <Form {...form}>
@@ -216,7 +237,7 @@ export default function MainContent({}: Props) {
                         <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b border-gray-100 pb-2">
                             Contact Information
                         </h2>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-3 gap-4 items-start">
                             <CustomFormField
                                 control={form.control}
                                 name="email"
@@ -229,7 +250,7 @@ export default function MainContent({}: Props) {
                             />
                             <CustomFormField
                                 control={form.control}
-                                name="phone"
+                                name="phoneNumber"
                                 label="Phone Number"
                                 placeholder="Enter Phone Number"
                                 type="text"
@@ -243,7 +264,7 @@ export default function MainContent({}: Props) {
                         <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b border-gray-100 pb-2">
                             Address
                         </h2>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-3 gap-4 items-start">
                             <CustomFormField
                                 control={form.control}
                                 name="addressLine1"
@@ -294,13 +315,20 @@ export default function MainContent({}: Props) {
                         <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b border-gray-100 pb-2">
                             Account Setup
                         </h2>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4 items-start">
                             <CustomFormField
                                 control={form.control}
                                 name="assignedTo"
                                 label="Assigned To Staff Member"
                                 placeholder="Select Staff Member"
                                 type="select"
+                                rules={{
+                                    required: {
+                                        value: true,
+                                        message:
+                                            'Assigned To Staff Member is required',
+                                    },
+                                }}
                                 options={staffUsers?.map((user) => ({
                                     label: `${user.firstName} ${user.lastName}`,
                                     value: user.id,
@@ -356,10 +384,16 @@ export default function MainContent({}: Props) {
                             <Save />
                             Save as Draft
                         </Button>
-                        <Button type="submit" variant="default" size="lg">
+                        <LoadingButton
+                            type="submit"
+                            variant="default"
+                            size="lg"
+                            disabled={isPending}
+                            isLoading={isPending}
+                        >
                             <Plus />
                             Add Client
-                        </Button>
+                        </LoadingButton>
                     </div>
                 </form>
             </Form>

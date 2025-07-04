@@ -25,7 +25,7 @@ export default function RootLayout({
                 className={`font-['Segoe_UI',_Tahoma,_Geneva,_Verdana,_sans-serif]  antialiased `}
             >
                 <Providers>{children}</Providers>
-                <Toaster />
+                <Toaster richColors />
             </body>
         </html>
     );

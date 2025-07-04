@@ -10,6 +10,7 @@ import { envSchema } from './config/env.schema';
 import { RolesModule } from './modules/roles/roles.module';
 import { HmrcModule } from './modules/hmrc/hmrc.module';
 import { join } from 'path';
+import { ClientsModule } from './modules/clients/clients.module';
 
 @Module({
     imports: [
@@ -39,6 +40,7 @@ import { join } from 'path';
         CompaniesModule,
         HmrcModule,
         RolesModule,
+        ClientsModule,
     ],
     controllers: [AppController],
     providers: [AppService],
