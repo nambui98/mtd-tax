@@ -49,11 +49,11 @@ export const clientsTable = pgTable('clients', {
     title: varchar('title', { length: 100 }).notNull(),
     firstName: varchar('first_name', { length: 100 }).notNull(),
     lastName: varchar('last_name', { length: 100 }).notNull(),
-    dateOfBirth: date('date_of_birth').notNull(),
-    nationalInsuranceNumber: varchar('national_insurance_number', {
+    dob: date('dob', { mode: 'string' }).notNull(),
+    nino: varchar('national_insurance_number', {
         length: 10,
     }).notNull(),
-    uniqueTaxpayerReference: varchar('unique_taxpayer_reference', {
+    utr: varchar('unique_taxpayer_reference', {
         length: 10,
     }).notNull(),
     email: varchar('email', { length: 255 }).notNull().unique(),
@@ -70,8 +70,8 @@ export const clientsTable = pgTable('clients', {
     hmrcAuthorization: boolean('hmrc_authorization').default(false),
     hmrcConnected: boolean('hmrc_connected').default(false),
     status: clientStatusEnum('status').notNull().default('mtd_ready'),
-    deadline: date('deadline').notNull(),
-    totalRevenue: integer('total_revenue').notNull(),
+    deadline: date('deadline'),
+    totalRevenue: integer('total_revenue'),
     createdBy: uuid('created_by')
         .references(() => usersTable.id)
         .notNull(),
@@ -83,10 +83,6 @@ export const clientsTable = pgTable('clients', {
 });
 
 // Zod schemas for validation
-export const insertClientSchema = createInsertSchema(clientsTable).omit({
-    createdAt: true,
-    updatedAt: true,
-});
 export const selectClientSchema = createSelectSchema(clientsTable);
 
 export const updateClientSchema = createUpdateSchema(clientsTable);
@@ -98,5 +94,18 @@ export type NewClient = typeof clientsTable.$inferInsert;
 // export type UpdateClientDto = z.infer<typeof updateClientSchema>;
 // export type InsertClientDto = z.infer<typeof insertClientSchema>;
 export type ClientResponse = typeof clientsTable.$inferSelect;
+
+export const insertClientSchema = createInsertSchema(clientsTable)
+    .omit({
+        id: true,
+        createdAt: true,
+        updatedAt: true,
+        createdBy: true,
+    })
+    .extend({
+        dob: z.coerce.date(),
+        email: z.string().email('Invalid email format'),
+        assignedTo: z.string().min(1, 'Assigned To Staff Member is required'),
+    });
 
 export type InsertClient = z.infer<typeof insertClientSchema>;

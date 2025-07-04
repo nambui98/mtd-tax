@@ -166,102 +166,115 @@ export default function ClientsContent({}: Props) {
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                         {/* Client Row 1 */}
-                        {clients?.map((client) => (
-                            <tr className="hover:bg-gray-50" key={client.id}>
-                                <td className="px-4 py-3">
-                                    <div className="flex items-center">
-                                        <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 mr-3">
-                                            <Building className="size-4" />
-                                        </div>
-                                        <div>
-                                            <a
-                                                href="client-detail-page.html"
-                                                className="font-medium text-gray-900"
-                                            >
-                                                {/* {client.title}{' '} */}
-                                                {client.firstName}{' '}
-                                                {client.lastName}
-                                            </a>
-                                            <div className="text-[0.75rem] text-gray-500">
-                                                {client.clientType}
+                        {clients && clients.length > 0 ? (
+                            clients?.map((client) => (
+                                <tr
+                                    className="hover:bg-gray-50"
+                                    key={client.id}
+                                >
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center">
+                                            <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 mr-3">
+                                                <Building className="size-4" />
                                             </div>
-                                            <div className="flex gap-1 mt-0.5">
-                                                <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 flex items-center">
-                                                    {/* <i className="fas fa-store text-[0.75rem] mr-1"></i>{' '} */}
+                                            <div>
+                                                <a
+                                                    href="client-detail-page.html"
+                                                    className="font-medium text-gray-900"
+                                                >
+                                                    {/* {client.title}{' '} */}
+                                                    {client.firstName}{' '}
+                                                    {client.lastName}
+                                                </a>
+                                                <div className="text-[0.75rem] text-gray-500">
                                                     {client.clientType}
+                                                </div>
+                                                <div className="flex gap-1 mt-0.5">
+                                                    <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 flex items-center">
+                                                        {/* <i className="fas fa-store text-[0.75rem] mr-1"></i>{' '} */}
+                                                        {client.clientType}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3 text-[0.875rem]">
-                                    {/* {client.businesses.length} */}
-                                    --
-                                </td>
-                                <td className="px-4 py-3">
-                                    {/* <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-danger-light text-danger">
+                                    </td>
+                                    <td className="px-4 py-3 text-[0.875rem]">
+                                        {/* {client.businesses.length} */}
+                                        --
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {/* <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-danger-light text-danger">
                                         Critical Issues
                                     </span> */}
-                                    --
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex items-center">
-                                        <div className="uppercase w-6 h-6 rounded-full bg-blue-500 text-white text-[0.75rem] flex items-center justify-center mr-1.5">
-                                            {client.assignee.firstName.charAt(
-                                                0,
-                                            )}
-                                            {client.assignee.lastName.charAt(0)}
-                                        </div>
-                                        <div className="text-[0.875rem] text-gray-600">
-                                            {client.assignee.firstName}{' '}
-                                            {client.assignee.lastName}
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3">
-                                    <div className="flex items-center">
-                                        <div className="font-medium text-danger mr-1.5">
-                                            {/* {client.deadline} */}
-                                            --
-                                        </div>
-                                        <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                                            {/* {client.deadline} */}
-                                            --
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3 relative group">
-                                    {/* £175,000 */}
-                                    {client.totalRevenue}
-                                    <div className="absolute left-0 top-full mt-1 bg-white shadow-lg rounded-lg p-2.5 w-60 hidden group-hover:block z-50">
-                                        <div className="text-[0.75rem] font-semibold text-gray-700 mb-1.5">
-                                            Business Revenue Breakdown
-                                        </div>
-                                        <div className="flex justify-between text-[0.75rem] mb-1">
-                                            <div className="text-gray-500">
-                                                UK Properties
+                                        --
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center">
+                                            <div className="uppercase w-6 h-6 rounded-full bg-blue-500 text-white text-[0.75rem] flex items-center justify-center mr-1.5">
+                                                {client.assignee.firstName.charAt(
+                                                    0,
+                                                )}
+                                                {client.assignee.lastName.charAt(
+                                                    0,
+                                                )}
                                             </div>
-                                            <div className="font-medium text-gray-900">
-                                                £68,000
+                                            <div className="text-[0.875rem] text-gray-600">
+                                                {client.assignee.firstName}{' '}
+                                                {client.assignee.lastName}
                                             </div>
                                         </div>
-                                        <div className="flex justify-between text-[0.75rem]">
-                                            <div className="text-gray-500">
-                                                Holiday Lets
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center">
+                                            <div className="font-medium text-danger mr-1.5">
+                                                {/* {client.deadline} */}
+                                                --
                                             </div>
-                                            <div className="font-medium text-gray-900">
-                                                £27,000
+                                            <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                                                {/* {client.deadline} */}
+                                                --
                                             </div>
                                         </div>
-                                    </div>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                    <button className="p-1 text-gray-600 hover:bg-gray-100 hover:text-primary rounded">
-                                        <i className="fas fa-ellipsis-v"></i>
-                                    </button>
+                                    </td>
+                                    <td className="px-4 py-3 relative group">
+                                        {/* £175,000 */}
+                                        {client.totalRevenue}
+                                        <div className="absolute left-0 top-full mt-1 bg-white shadow-lg rounded-lg p-2.5 w-60 hidden group-hover:block z-50">
+                                            <div className="text-[0.75rem] font-semibold text-gray-700 mb-1.5">
+                                                Business Revenue Breakdown
+                                            </div>
+                                            <div className="flex justify-between text-[0.75rem] mb-1">
+                                                <div className="text-gray-500">
+                                                    UK Properties
+                                                </div>
+                                                <div className="font-medium text-gray-900">
+                                                    £68,000
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between text-[0.75rem]">
+                                                <div className="text-gray-500">
+                                                    Holiday Lets
+                                                </div>
+                                                <div className="font-medium text-gray-900">
+                                                    £27,000
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                        <button className="p-1 text-gray-600 hover:bg-gray-100 hover:text-primary rounded">
+                                            <i className="fas fa-ellipsis-v"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={7} className="text-center py-4">
+                                    No clients found
                                 </td>
                             </tr>
-                        ))}
+                        )}
 
                         {/* <tr className="hover:bg-gray-50">
                             <td className="px-4 py-3">

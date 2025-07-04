@@ -43,6 +43,12 @@
     --sidebar-accent-foreground: oklch(0.18 0.01 260);
     --sidebar-border: oklch(0.89 0.01 260);
     --sidebar-ring: oklch(0.7 0.01 260);
+    --success: oklch(0.4318 0.0865 166.91);
+    --success-light: oklch(0.9505 0.0507 163.05);
+    --warning: oklch(0.4732 0.1247 46.2);
+    --warning-light: oklch(0.9619 0.058 95.62);
+    --danger: oklch(0.5054 0.1905 27.52);
+    --danger-light: oklch(0.9356 0.0309 17.72);
 }
 
 .dark {
@@ -78,6 +84,12 @@
     --sidebar-accent-foreground: oklch(0.98 0.01 260);
     --sidebar-border: oklch(0.22 0.01 260);
     --sidebar-ring: oklch(0.45 0.01 260);
+    --success: oklch(0.4318 0.0865 166.91);
+    --success-light: oklch(0.9505 0.0507 163.05);
+    --warning: oklch(0.4732 0.1247 46.2);
+    --warning-light: oklch(0.9619 0.058 95.62);
+    --danger: oklch(0.5054 0.1905 27.52);
+    --danger-light: oklch(0.9356 0.0309 17.72);
 }
 
 @theme inline {
@@ -117,6 +129,12 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+    --color-success: var(--success);
+    --color-success-light: var(--success-light);
+    --color-warning: var(--warning);
+    --color-warning-light: var(--warning-light);
+    --color-danger: var(--danger);
+    --color-danger-light: var(--danger-light);
 }
 
 @layer base {
