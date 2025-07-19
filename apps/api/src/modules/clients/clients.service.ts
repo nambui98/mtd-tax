@@ -22,7 +22,8 @@ export class ClientsService {
                 createdBy: userId,
                 dob: createClientDto.dob.toISOString(),
             })
-            .returning();
+            .returning()
+            .then((result) => result[0]); // Return the first (and only) client
     }
 
     findAll() {
@@ -33,7 +34,8 @@ export class ClientsService {
         return this.db
             .select()
             .from(clientsTable)
-            .where(eq(clientsTable.id, id.toString()));
+            .where(eq(clientsTable.id, id.toString()))
+            .then((result) => result[0]); // Return the first (and only) client
     }
 
     update(id: number, updateClientDto: UpdateClientDto) {
@@ -41,14 +43,16 @@ export class ClientsService {
             .update(clientsTable)
             .set(updateClientDto)
             .where(eq(clientsTable.id, id.toString()))
-            .returning();
+            .returning()
+            .then((result) => result[0]); // Return the first (and only) updated client
     }
 
     remove(id: number) {
         return this.db
             .delete(clientsTable)
             .where(eq(clientsTable.id, id.toString()))
-            .returning();
+            .returning()
+            .then((result) => result[0]); // Return the first (and only) deleted client
     }
 
     findAllByUser(
@@ -106,5 +110,98 @@ export class ClientsService {
                 .where(baseClause)
                 .orderBy(desc(clientsTable.createdAt));
         }
+    }
+
+    async findClientAgencyRelationshipByUtr(utr: string) {
+        const result = await this.db
+            .select({
+                client: {
+                    id: clientsTable.id,
+                    firstName: clientsTable.firstName,
+                    lastName: clientsTable.lastName,
+                    email: clientsTable.email,
+                    utr: clientsTable.utr,
+                    clientType: clientsTable.clientType,
+                    mtdStatus: clientsTable.mtdStatus,
+                    status: clientsTable.status,
+                    hmrcConnected: clientsTable.hmrcConnected,
+                    hmrcAuthorization: clientsTable.hmrcAuthorization,
+                    createdAt: clientsTable.createdAt,
+                    updatedAt: clientsTable.updatedAt,
+                },
+                assignedStaff: {
+                    id: usersTable.id,
+                    firstName: usersTable.firstName,
+                    lastName: usersTable.lastName,
+                    email: usersTable.email,
+                    jobTitle: usersTable.jobTitle,
+                    practiceType: usersTable.practiceType,
+                    agentReferenceNumber: usersTable.agentReferenceNumber,
+                    utr: usersTable.utr,
+                },
+                createdBy: {
+                    id: usersTable.id,
+                    firstName: usersTable.firstName,
+                    lastName: usersTable.lastName,
+                    email: usersTable.email,
+                    jobTitle: usersTable.jobTitle,
+                    practiceType: usersTable.practiceType,
+                    agentReferenceNumber: usersTable.agentReferenceNumber,
+                    utr: usersTable.utr,
+                },
+            })
+            .from(clientsTable)
+            .leftJoin(usersTable, eq(clientsTable.assignedTo, usersTable.id))
+            .where(eq(clientsTable.utr, utr))
+            .limit(1);
+
+        if (result.length === 0) {
+            return null;
+        }
+
+        const clientData = result[0];
+
+        // Get creator details using the createdBy field
+        let creatorDetails = null;
+        const createdByResult = await this.db
+            .select({
+                createdBy: clientsTable.createdBy,
+            })
+            .from(clientsTable)
+            .where(eq(clientsTable.utr, utr))
+            .limit(1);
+
+        if (createdByResult.length > 0 && createdByResult[0].createdBy) {
+            const creatorResult = await this.db
+                .select({
+                    id: usersTable.id,
+                    firstName: usersTable.firstName,
+                    lastName: usersTable.lastName,
+                    email: usersTable.email,
+                    jobTitle: usersTable.jobTitle,
+                    practiceType: usersTable.practiceType,
+                    agentReferenceNumber: usersTable.agentReferenceNumber,
+                    utr: usersTable.utr,
+                })
+                .from(usersTable)
+                .where(eq(usersTable.id, createdByResult[0].createdBy))
+                .limit(1);
+
+            if (creatorResult.length > 0) {
+                creatorDetails = creatorResult[0];
+            }
+        }
+
+        return {
+            client: clientData.client,
+            relationship: {
+                assignedStaff: clientData.assignedStaff,
+                createdBy: creatorDetails,
+                relationshipType: clientData.assignedStaff
+                    ? 'assigned'
+                    : 'created_only',
+                isActive: clientData.client.status !== 'critical_issues',
+            },
+        };
     }
 }

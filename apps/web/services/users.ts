@@ -56,6 +56,6 @@ export const usersService = {
     },
     createClient: async (client: InsertClient): Promise<Client> => {
         const response = await api.post('/clients', client);
-        return response.data.data;
+        return response.data.data; // Response interceptor wraps in data object
     },
 };

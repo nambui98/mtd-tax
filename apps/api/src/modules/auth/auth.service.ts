@@ -328,7 +328,7 @@ export class AuthService {
         const [accessToken, refreshToken] = await Promise.all([
             this.jwtService.signAsync(payload, {
                 secret: this.configService.get<string>('JWT_SECRET'),
-                expiresIn: '1h',
+                expiresIn: '7d',
             }),
             this.jwtService.signAsync(payload, {
                 secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
@@ -466,13 +466,18 @@ export class AuthService {
         const payload = {
             sub: user.id,
             email: user.email,
+            agentReferenceNumber: user.agentReferenceNumber,
+            utr: user.utr,
+            nino: user.nino,
+            hmrcConnected: user.hmrcConnected,
+            hmrcConnectedAt: user.hmrcConnectedAt,
             roles: userRoles.map((ur) => ur.roleName),
         };
 
         const [accessToken, refreshToken] = await Promise.all([
             this.jwtService.signAsync(payload, {
                 secret: this.configService.get<string>('JWT_SECRET'),
-                expiresIn: '1h',
+                expiresIn: '7d',
             }),
             this.jwtService.signAsync(payload, {
                 secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
@@ -627,6 +632,7 @@ export class AuthService {
             .from(userRolesTable)
             .innerJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id))
             .where(eq(userRolesTable.userId, user.id));
+        console.log('vaiiiiiiiiiiiiiiiiiiiiiiii');
 
         return {
             id: user.id,
@@ -634,6 +640,11 @@ export class AuthService {
             firstName: user.firstName,
             lastName: user.lastName,
             roles: userRoles.map((ur) => ur.roleName),
+            agentReferenceNumber: user.agentReferenceNumber,
+            utr: user.utr,
+            nino: user.nino,
+            hmrcConnected: user.hmrcConnected,
+            hmrcConnectedAt: user.hmrcConnectedAt,
         };
     }
 
@@ -649,6 +660,11 @@ export class AuthService {
             firstName: userData.firstName,
             lastName: userData.lastName,
             roles: user.roles,
+            agentReferenceNumber: userData.agentReferenceNumber,
+            utr: userData.utr,
+            nino: userData.nino,
+            hmrcConnected: userData.hmrcConnected,
+            hmrcConnectedAt: userData.hmrcConnectedAt,
         };
     }
 

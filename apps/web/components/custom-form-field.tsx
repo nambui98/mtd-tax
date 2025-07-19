@@ -39,6 +39,7 @@ import { DateTimePicker } from './date-picker';
 import { Icons } from './icons';
 import { Switch } from '@workspace/ui/components/switch';
 import { Textarea } from '@workspace/ui/components/textarea';
+import DateRangePicker from './date-range-picker';
 
 type Option = {
     label: string;
@@ -59,6 +60,7 @@ type CustomFormFieldProps<
         | 'switch'
         | 'radio-group'
         | 'date'
+        | 'date-range'
         | 'textarea';
     label?: React.ReactNode;
     description?: string;
@@ -248,6 +250,13 @@ const CustomFormField = <
                 );
             case 'textarea':
                 return <Textarea placeholder={placeholder} {...field} />;
+            case 'date-range':
+                return (
+                    <DateRangePicker
+                        dateRange={field.value}
+                        setDateRange={field.onChange}
+                    />
+                );
             default:
                 return <input name={name} />;
         }

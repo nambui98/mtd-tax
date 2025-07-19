@@ -64,10 +64,6 @@ export default function Filter({ onFilter }: Props) {
                 <form
                     onSubmit={form.handleSubmit(onSubmit)}
                     onChange={() => {
-                        console.log('====================================');
-                        console.log(form.getValues());
-                        console.log('====================================');
-                        debugger;
                         onFilter(form.getValues());
                     }}
                     className="flex justify-between items-center px-4 py-3 border-b border-gray-200 gap-4"

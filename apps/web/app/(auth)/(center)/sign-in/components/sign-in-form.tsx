@@ -171,7 +171,7 @@ export default function SignInForm() {
                                 <div className="space-y-4">
                                     {!otpSent ? (
                                         <Button
-                                            type="button"
+                                            type="submit"
                                             onClick={handleSendOtp}
                                             className="w-full text-base font-semibold leading-6"
                                             size="xl"

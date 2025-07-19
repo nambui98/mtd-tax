@@ -3,6 +3,7 @@ import {
     Injectable,
     UnauthorizedException,
     BadRequestException,
+    NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Inject } from '@nestjs/common';
@@ -10,7 +11,7 @@ import { DATABASE_CONNECTION } from '../../database/database.module';
 import { Database } from '@workspace/database';
 import { eq } from 'drizzle-orm';
 import axios from 'axios';
-import { hmrcTokensTable } from '@workspace/database/dist/schema';
+import { hmrcTokensTable, usersTable } from '@workspace/database/dist/schema';
 import { addSeconds } from 'date-fns';
 
 @Injectable()
@@ -36,12 +37,24 @@ export class HmrcService {
         this.tokenUrl = `${this.apiUrl}/oauth/token`;
     }
 
-    getAuthorizationUrl(state: string): string {
+    async getAuthorizationUrl(
+        state: string,
+        body: { userId: string; arn?: string; utr?: string; nino?: string },
+    ): Promise<string> {
+        await this.db
+            .update(usersTable)
+            .set({
+                agentReferenceNumber: body.arn,
+                utr: body.utr,
+                nino: body.nino,
+                updatedAt: new Date(),
+            })
+            .where(eq(usersTable.id, body.userId));
         const params = new URLSearchParams({
             response_type: 'code',
             client_id: this.clientId,
             redirect_uri: this.redirectUri,
-            scope: 'read:vat write:vat',
+            scope: 'hello read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
             state,
         });
 
@@ -65,6 +78,7 @@ export class HmrcService {
                     client_secret: this.clientSecret,
                     redirect_uri: this.redirectUri,
                     code,
+                    scope: 'hello read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
                 }),
                 {
                     headers: {
@@ -116,6 +130,7 @@ export class HmrcService {
                     client_id: this.clientId,
                     client_secret: this.clientSecret,
                     refresh_token: currentToken.refreshToken,
+                    scope: 'hello read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
                 }),
                 {
                     headers: {
@@ -160,6 +175,19 @@ export class HmrcService {
         }
 
         return token.accessToken;
+    }
+
+    async getArn(userId: string): Promise<string> {
+        const [user] = await this.db
+            .select()
+            .from(usersTable)
+            .where(eq(usersTable.id, userId));
+
+        if (!user) {
+            throw new UnauthorizedException('No user found for user');
+        }
+
+        return user.agentReferenceNumber ?? '';
     }
 
     async getVatObligations(userId: string, vrn: string): Promise<any> {
@@ -261,5 +289,427 @@ export class HmrcService {
         );
         console.log(response.data);
         return response.data;
+    }
+
+    async getClientAgencyRelationshipByUtr(
+        userId: string,
+        arn: string,
+        utr: string,
+        service: string[] = ['MTD-IT'],
+        knownFact?: string,
+    ): Promise<{
+        isAuthorised: boolean;
+        relationship?: {
+            service: string[];
+            status: 'active' | 'inactive';
+            arn: string;
+            clientId: string;
+            clientIdType: string;
+            checkedAt: string;
+        };
+    }> {
+        try {
+            const accessToken = await this.getAccessToken(userId);
+            const arn = await this.getArn(userId);
+            // Prepare the request payload
+            const requestPayload = {
+                service,
+                clientIdType: 'utr',
+                clientId: utr,
+                ...(knownFact && { knownFact }),
+            };
+
+            const response = await axios.post(
+                `${this.apiUrl}/agents/${arn}/relationships`,
+                requestPayload,
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                        Accept: 'application/vnd.hmrc.1.0+json',
+                    },
+                },
+            );
+            console.log(response.data);
+
+            // 204 means relationship is active
+            return {
+                isAuthorised: true,
+                relationship: {
+                    service,
+                    status: 'active',
+                    arn,
+                    clientId: utr,
+                    clientIdType: 'utr',
+                    checkedAt: new Date().toISOString(),
+                },
+            };
+        } catch (error: any) {
+            // 404 means relationship is inactive or not found
+            if (error.response?.status === 404) {
+                return {
+                    isAuthorised: false,
+                    relationship: {
+                        service,
+                        status: 'inactive',
+                        arn,
+                        clientId: utr,
+                        clientIdType: 'utr',
+                        checkedAt: new Date().toISOString(),
+                    },
+                };
+            }
+
+            // Handle other HMRC API errors
+            if (error.response?.status === 403) {
+                const errorCode = error.response.data?.code;
+                switch (errorCode) {
+                    case 'CLIENT_REGISTRATION_NOT_FOUND':
+                        throw new NotFoundException(
+                            'Client not found in HMRC records',
+                        );
+                    case 'NOT_AN_AGENT':
+                        throw new UnauthorizedException(
+                            'User is not registered as an agent',
+                        );
+                    case 'AGENT_NOT_SUBSCRIBED':
+                        throw new UnauthorizedException(
+                            'Agent not subscribed to HMRC services',
+                        );
+                    default:
+                        throw new BadRequestException(
+                            `HMRC API error: ${errorCode}`,
+                        );
+                }
+            }
+
+            if (error.response?.status === 400) {
+                throw new BadRequestException('Invalid request parameters');
+            }
+
+            throw new BadRequestException(
+                'Failed to check client-agency relationship with HMRC',
+            );
+        }
+    }
+
+    async getAgentClients(userId: string, arn: string): Promise<any> {
+        try {
+            const accessToken = await this.getAccessToken(userId);
+
+            const response = await axios.get(
+                `${this.apiUrl}/agents/${arn}/invitations`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        Accept: 'application/vnd.hmrc.1.0+json',
+                    },
+                },
+            );
+
+            return response.data;
+        } catch (error: any) {
+            if (error.response?.status === 204) {
+                // No invitations found
+                return [];
+            }
+
+            throw new BadRequestException(
+                'Failed to retrieve agent clients from HMRC',
+            );
+        }
+    }
+
+    async checkAgencyRelationship(
+        userId: string,
+        agencyId: string,
+        utr: string,
+    ): Promise<{
+        hasRelationship: boolean;
+        relationshipData?: {
+            service: string[];
+            status: 'active' | 'inactive';
+            arn: string;
+            clientId: string;
+            clientIdType: string;
+            checkedAt: string;
+        };
+    }> {
+        try {
+            // Validate inputs
+            if (!/^\d{10}$/.test(utr)) {
+                throw new BadRequestException(
+                    'Invalid UTR format. UTR must be exactly 10 digits.',
+                );
+            }
+
+            // if (!/^ARN\d+$/.test(agencyId)) {
+            //     throw new BadRequestException(
+            //         'Invalid agency ID format. Agency ID must start with ARN followed by numbers.',
+            //     );
+            // }
+            const arn = await this.getArn(userId);
+
+            // Check relationship using existing method
+            const relationship = await this.getClientAgencyRelationshipByUtr(
+                userId,
+                arn,
+                utr,
+                ['MTD-IT', 'MTD-VAT'], // Check both services
+            );
+
+            return {
+                hasRelationship: relationship.isAuthorised,
+                relationshipData: relationship.relationship,
+            };
+        } catch (error: any) {
+            // Handle specific HMRC API errors
+            if (error.response?.status === 404) {
+                // No relationship found
+                return {
+                    hasRelationship: false,
+                    relationshipData: {
+                        service: ['MTD-IT', 'MTD-VAT'],
+                        status: 'inactive',
+                        arn: agencyId,
+                        clientId: utr,
+                        clientIdType: 'utr',
+                        checkedAt: new Date().toISOString(),
+                    },
+                };
+            }
+
+            if (error.response?.status === 403) {
+                const errorCode = error.response.data?.code;
+                switch (errorCode) {
+                    case 'CLIENT_REGISTRATION_NOT_FOUND':
+                        throw new NotFoundException(
+                            'Client not found in HMRC records',
+                        );
+                    case 'NOT_AN_AGENT':
+                        throw new UnauthorizedException(
+                            'User is not registered as an agent',
+                        );
+                    case 'AGENT_NOT_SUBSCRIBED':
+                        throw new UnauthorizedException(
+                            'Agent not subscribed to HMRC services',
+                        );
+                    default:
+                        throw new BadRequestException(
+                            `HMRC API error: ${errorCode}`,
+                        );
+                }
+            }
+
+            if (error.response?.status === 400) {
+                throw new BadRequestException('Invalid request parameters');
+            }
+
+            // For other errors, return no relationship
+            return {
+                hasRelationship: false,
+                relationshipData: {
+                    service: ['MTD-IT', 'MTD-VAT'],
+                    status: 'inactive',
+                    arn: agencyId,
+                    clientId: utr,
+                    clientIdType: 'utr',
+                    checkedAt: new Date().toISOString(),
+                },
+            };
+        }
+    }
+
+    async requestAgencyRelationship(
+        userId: string,
+        agencyId: string,
+        utr: string,
+        knownFact?: string,
+    ): Promise<{
+        success: boolean;
+        invitationId?: string;
+        message: string;
+        status: 'pending' | 'accepted' | 'rejected';
+    }> {
+        try {
+            // Validate inputs
+            if (!/^\d{10}$/.test(utr)) {
+                throw new BadRequestException(
+                    'Invalid UTR format. UTR must be exactly 10 digits.',
+                );
+            }
+
+            // if (!/^ARN\d+$/.test(agencyId)) {
+            //     throw new BadRequestException(
+            //         'Invalid agency ID format. Agency ID must start with ARN followed by numbers.',
+            //     );
+            // }
+
+            const accessToken = await this.getAccessToken(userId);
+            const arn = await this.getArn(userId);
+            console.log(accessToken);
+
+            // Test ARN exists first
+            try {
+                const testResponse = await axios.get(
+                    `${this.apiUrl}/agents/${arn}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${accessToken}`,
+                            Accept: 'application/vnd.hmrc.1.0+json',
+                        },
+                    },
+                );
+                console.log('✅ ARN test successful:', testResponse.data);
+            } catch (testError: any) {
+                if (testError.response?.status === 404) {
+                    throw new BadRequestException(
+                        `ARN ${arn} not found in HMRC. Please verify your Agent Reference Number.`,
+                    );
+                }
+                throw testError;
+            }
+
+            // Prepare the invitation request payload
+            const requestPayload = {
+                service: ['MTD-IT', 'MTD-VAT'],
+                clientType: 'individual',
+                clientIdType: 'utr',
+                clientId: utr,
+                ...(knownFact && { knownFact }),
+            };
+
+            console.log('📤 Making invitation request:', {
+                url: `${this.apiUrl}/agents/${arn}/invitations`,
+                payload: requestPayload,
+            });
+
+            const response = await axios.post(
+                `${this.apiUrl}/agents/${arn}/invitations`,
+                requestPayload,
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json',
+                        Accept: 'application/vnd.hmrc.1.0+json',
+                    },
+                },
+            );
+            // console.log(response.data);
+
+            // HMRC returns 201 for successful invitation creation
+            if (response.status === 201) {
+                return {
+                    success: true,
+                    invitationId: response.data?.invitationId,
+                    message:
+                        'Relationship invitation sent successfully. The client will receive a notification to authorize the relationship.',
+                    status: 'pending',
+                };
+            }
+
+            return {
+                success: false,
+                message: 'Failed to send relationship invitation',
+                status: 'pending',
+            };
+        } catch (error: any) {
+            console.log(error.response.data);
+            // Handle specific HMRC API errors
+            if (error.response?.status === 400) {
+                const errorCode = error.response.data?.code;
+                switch (errorCode) {
+                    case 'CLIENT_REGISTRATION_NOT_FOUND':
+                        throw new BadRequestException(
+                            'Client not found in HMRC records. Please verify the UTR is correct.',
+                        );
+                    case 'INVALID_KNOWN_FACT':
+                        throw new BadRequestException(
+                            'Invalid known fact provided. Please check the client information.',
+                        );
+                    case 'DUPLICATE_INVITATION':
+                        throw new BadRequestException(
+                            'An invitation has already been sent for this client. Please wait for their response.',
+                        );
+                    default:
+                        throw new BadRequestException(
+                            `Invalid request: ${errorCode}`,
+                        );
+                }
+            }
+
+            if (error.response?.status === 403) {
+                const errorCode = error.response.data?.code;
+                switch (errorCode) {
+                    case 'NOT_AN_AGENT':
+                        throw new UnauthorizedException(
+                            'User is not registered as an agent with HMRC',
+                        );
+                    case 'AGENT_NOT_SUBSCRIBED':
+                        throw new UnauthorizedException(
+                            'Agent not subscribed to required HMRC services',
+                        );
+                    case 'AGENT_NOT_AUTHORIZED':
+                        throw new UnauthorizedException(
+                            'Agent not authorized to send invitations',
+                        );
+                    default:
+                        throw new BadRequestException(
+                            `Authorization error: ${errorCode}`,
+                        );
+                }
+            }
+
+            if (error.response?.status === 409) {
+                throw new BadRequestException(
+                    'A relationship already exists with this client',
+                );
+            }
+
+            throw new BadRequestException(
+                'Failed to send relationship invitation. Please try again later.',
+            );
+        }
+    }
+
+    async getPendingInvitations(
+        userId: string,
+        agencyId: string,
+    ): Promise<{
+        invitations: Array<{
+            invitationId: string;
+            clientId: string;
+            clientIdType: string;
+            service: string[];
+            status: 'pending' | 'accepted' | 'rejected';
+            createdDate: string;
+        }>;
+    }> {
+        try {
+            const accessToken = await this.getAccessToken(userId);
+
+            const response = await axios.get(
+                `${this.apiUrl}/agents/${agencyId}/invitations`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        Accept: 'application/vnd.hmrc.1.0+json',
+                    },
+                },
+            );
+
+            return {
+                invitations: response.data.invitations || [],
+            };
+        } catch (error: any) {
+            if (error.response?.status === 204) {
+                // No invitations found
+                return { invitations: [] };
+            }
+
+            throw new BadRequestException(
+                'Failed to retrieve pending invitations from HMRC',
+            );
+        }
     }
 }

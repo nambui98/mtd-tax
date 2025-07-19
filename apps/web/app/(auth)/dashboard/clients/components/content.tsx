@@ -1,11 +1,11 @@
 'use client';
-import MainPageWrapper from '@/components/layout/main-page-wrapper';
 import {
     Building,
     CheckIcon,
     ChevronRightIcon,
     CircleAlertIcon,
     ClockIcon,
+    Loader2,
     TriangleAlertIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -22,7 +22,7 @@ export default function ClientsContent({}: Props) {
         businessType?: string;
         assignee?: string;
     }>({});
-    const { data: clients } = useQuery({
+    const { data: clients, isLoading } = useQuery({
         queryKey: ['clients', filters],
         queryFn: () => clientsService.getMyClients(filters),
     });
@@ -153,6 +153,9 @@ export default function ClientsContent({}: Props) {
                                 Status
                             </th>
                             <th className="px-4 py-3 text-left text-[0.75rem] font-semibold text-gray-500 uppercase">
+                                Authorization Status
+                            </th>
+                            <th className="px-4 py-3 text-left text-[0.75rem] font-semibold text-gray-500 uppercase">
                                 Accountant
                             </th>
                             <th className="px-4 py-3 text-left text-[0.75rem] font-semibold text-gray-500 uppercase">
@@ -166,7 +169,13 @@ export default function ClientsContent({}: Props) {
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                         {/* Client Row 1 */}
-                        {clients && clients.length > 0 ? (
+                        {isLoading ? (
+                            <tr>
+                                <td colSpan={7} className="text-center py-4">
+                                    <Loader2 className="size-4 animate-spin mx-auto" />
+                                </td>
+                            </tr>
+                        ) : clients && clients.length > 0 ? (
                             clients?.map((client) => (
                                 <tr
                                     className="hover:bg-gray-50"
@@ -197,6 +206,10 @@ export default function ClientsContent({}: Props) {
                                                 </div>
                                             </div>
                                         </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-[0.875rem]">
+                                        {/* {client.businesses.length} */}
+                                        --
                                     </td>
                                     <td className="px-4 py-3 text-[0.875rem]">
                                         {/* {client.businesses.length} */}

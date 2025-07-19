@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 import { DayButton, DayPicker, getDefaultClassNames } from 'react-day-picker';
 
-import { Button, buttonVariants } from '@workspace/ui/components/button';
 import { cn } from '@workspace/ui/lib/utils';
+import { Button, buttonVariants } from '@workspace/ui/components/button';
 
 function Calendar({
     className,
@@ -77,7 +77,7 @@ function Calendar({
                     defaultClassNames.dropdown_root,
                 ),
                 dropdown: cn(
-                    'absolute inset-0 opacity-0',
+                    'absolute bg-popover inset-0 opacity-0',
                     defaultClassNames.dropdown,
                 ),
                 caption_label: cn(

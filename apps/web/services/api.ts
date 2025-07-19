@@ -43,7 +43,6 @@ api.interceptors.request.use(
             session = await getServerSession(authOptions);
         }
 
-        debugger;
         if (session?.accessToken) {
             config.headers.Authorization = `Bearer ${session?.accessToken}`;
         }

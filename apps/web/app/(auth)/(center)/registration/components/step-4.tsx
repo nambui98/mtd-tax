@@ -32,7 +32,11 @@ export default function Step4({
 }: Props) {
     const { mutate: connectToHmrc, isPending } = useMutation({
         mutationFn: async () => {
-            const response = await hmrcService.connectToHmrc();
+            const response = await hmrcService.connectToHmrc(
+                form.getValues().agentReferenceNumber ?? '',
+                form.getValues().utr ?? '',
+                form.getValues().nino ?? '',
+            );
             return response.data;
         },
         onSuccess: (data) => {

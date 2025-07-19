@@ -2,11 +2,11 @@ import { Env } from '@/lib/env';
 import { api } from './api';
 
 export const hmrcService = {
-    async connectToHmrc() {
-        const response = await api.get(`/hmrc/authorize`, {
-            headers: {
-                skipAuth: true,
-            },
+    async connectToHmrc(arn: string, utr: string, nino: string) {
+        const response = await api.post(`/hmrc/authorize`, {
+            arn,
+            utr,
+            nino,
         });
         return response.data;
     },

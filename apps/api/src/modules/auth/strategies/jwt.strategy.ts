@@ -21,10 +21,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     validate(payload: any) {
+        console.log('payload', payload);
         return {
             userId: payload.sub,
             email: payload.email,
             roles: payload.roles,
+            agentReferenceNumber: payload.agentReferenceNumber,
+            utr: payload.utr,
+            nino: payload.nino,
+            hmrcConnected: payload.hmrcConnected,
+            hmrcConnectedAt: payload.hmrcConnectedAt,
         };
     }
 }

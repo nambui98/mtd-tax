@@ -23,6 +23,10 @@ import {
 } from '@workspace/database/dist/schema/clients';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { clientsService, AgencyRelationshipResponse } from '@/services/clients';
+import RelationshipPopup from './relationship-popup';
+import TestData from './test-data';
+import { useSession } from 'next-auth/react';
 
 // const formSchema = z.object({
 //     clientType: z.string().min(1, { message: 'Client Type is required' }),
@@ -54,6 +58,15 @@ type Props = {};
 
 export default function MainContent({}: Props) {
     const router = useRouter();
+    const [showRelationshipPopup, setShowRelationshipPopup] =
+        React.useState(false);
+    const [relationshipData, setRelationshipData] =
+        React.useState<AgencyRelationshipResponse | null>(null);
+    const [isCheckingRelationship, setIsCheckingRelationship] =
+        React.useState(false);
+    const [currentUtr, setCurrentUtr] = React.useState<string>('');
+    const { data: session } = useSession();
+
     const form = useForm<InsertClient>({
         resolver: zodResolver(insertClientSchema),
         defaultValues: {
@@ -85,16 +98,99 @@ export default function MainContent({}: Props) {
         queryFn: () => usersService.getStaffUsers(),
     });
 
+    // Function to fill form with test data
+    const handleFillForm = (data: any) => {
+        form.reset(data);
+    };
+
     const { mutate: createClient, isPending } = useMutation({
         mutationFn: (client: InsertClient) => usersService.createClient(client),
-        onSuccess: () => {
+        onSuccess: async (client) => {
             toast.success('Client created successfully');
-            router.push('/dashboard/clients');
+            debugger;
+            // Check agency relationship after successful client creation
+            if (client.utr) {
+                setIsCheckingRelationship(true);
+                try {
+                    // For demo purposes, using a sample ARN - in production, get from user profile
+                    setCurrentUtr(client.utr);
+
+                    const relationship =
+                        await clientsService.checkAgencyRelationship(
+                            client.utr,
+                            session?.user.agentReferenceNumber as string,
+                        );
+                    debugger;
+                    setRelationshipData(relationship);
+
+                    setShowRelationshipPopup(true);
+                } catch (error) {
+                    console.error(
+                        'Failed to check agency relationship:',
+                        error,
+                    );
+                    toast.error(
+                        'Failed to check agency relationship. You can check this later.',
+                    );
+                    // Continue with navigation even if relationship check fails
+                    router.push('/dashboard/clients');
+                } finally {
+                    setIsCheckingRelationship(false);
+                }
+            } else {
+                router.push('/dashboard/clients');
+            }
         },
-        onError: () => {
-            toast.error('Failed to create client');
+        onError: (error: any) => {
+            toast.error(error.message || 'Failed to create client');
         },
     });
+
+    const { mutate: requestRelationship, isPending: isRequestingRelationship } =
+        useMutation({
+            mutationFn: async () => {
+                // Use the real HMRC API to request a relationship
+                if (!currentUtr) {
+                    throw new Error('Missing UTR or Agency ID');
+                }
+
+                // You can optionally pass a known fact (like postcode) for additional verification
+                const knownFact = form.getValues('postcode'); // Use postcode as known fact
+
+                return await clientsService.requestAgencyRelationship(
+                    currentUtr,
+                    knownFact,
+                );
+            },
+            onSuccess: (result) => {
+                if (result.success) {
+                    toast.success(
+                        result.message ||
+                            'Relationship request sent successfully',
+                    );
+                } else {
+                    toast.error(
+                        result.message || 'Failed to send relationship request',
+                    );
+                }
+                setShowRelationshipPopup(false);
+                router.push('/dashboard/clients');
+            },
+            onError: (error: any) => {
+                console.error('Relationship request error:', error);
+                toast.error(error.message || 'Failed to request relationship');
+            },
+        });
+
+    const handleCloseRelationshipPopup = () => {
+        setShowRelationshipPopup(false);
+        router.push('/dashboard/clients');
+    };
+
+    const handleRequestRelationship = () => {
+        requestRelationship();
+    };
+
     console.log(staffUsers);
     const onSubmit = (values: InsertClient) => {
         console.log(values);
@@ -104,6 +200,11 @@ export default function MainContent({}: Props) {
     console.log(form.formState.errors);
     return (
         <>
+            {/* Test Data Component - Only show in development */}
+            {process.env.NODE_ENV === 'development' && (
+                <TestData onFillForm={handleFillForm} staffUsers={staffUsers} />
+            )}
+
             <Form {...form}>
                 <form
                     onSubmit={form.handleSubmit(onSubmit)}
@@ -363,18 +464,6 @@ export default function MainContent({}: Props) {
                             </div>
                         </div>
                     </section>
-                    <section>
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b border-gray-100 pb-2">
-                            HMRC Authorization
-                        </h2>
-                        <CustomFormField
-                            control={form.control}
-                            name="hmrcAuthorization"
-                            label="Client has authorized us to act ast agent with HMRC"
-                            type="checkbox"
-                            description="Note: The client will need to complete HMRC's authorization process before you can submit on their behalf"
-                        />
-                    </section>
                     <div className="flex justify-end gap-3 pt-6 border-t border-gray-100 mt-8">
                         <Button type="button" variant="outline" size="lg">
                             <X />
@@ -397,6 +486,15 @@ export default function MainContent({}: Props) {
                     </div>
                 </form>
             </Form>
+
+            <RelationshipPopup
+                isOpen={showRelationshipPopup}
+                onClose={handleCloseRelationshipPopup}
+                relationshipData={relationshipData}
+                onRequestRelationship={handleRequestRelationship}
+                isLoading={isRequestingRelationship}
+                isCheckingRelationship={isCheckingRelationship}
+            />
         </>
     );
 }
