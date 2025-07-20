@@ -309,9 +309,6 @@ export class HmrcController {
         @Req() req: any,
     ) {
         const { arn, nino, knownFact } = body;
-        console.log(
-            '====================================checkAgencyRelationship',
-        );
 
         // Validate agency ID format (should start with ARN)
         // if (!/^ARN\d+$/.test(agencyId)) {
@@ -529,11 +526,6 @@ export class HmrcController {
         @Query('clientIdType') clientIdType: 'ni' | 'utr' = 'utr',
         @Query('knownFact') knownFact: string,
     ) {
-        console.log('====================================');
-        console.log(req.user);
-        console.log(clientId);
-        console.log(clientIdType);
-        console.log('====================================');
         return this.hmrcService.getClientBusinesses(
             req.user.userId,
             clientId,
@@ -623,11 +615,143 @@ export class HmrcController {
         @Request() req: { user: { userId: string } },
         @Param('clientId') clientId: string,
         @Param('businessId') businessId: string,
+        @Query('nino') nino: string,
     ) {
         return this.hmrcService.getClientBusinessDetails(
             req.user.userId,
             clientId,
             businessId,
+            nino,
+        );
+    }
+
+    @Get('clients/:clientId/businesses/:businessId/income-summary')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get business income summary' })
+    @ApiParam({ name: 'clientId', description: 'Client ID' })
+    @ApiParam({ name: 'businessId', description: 'Business ID' })
+    @ApiQuery({ name: 'nino', description: 'National Insurance Number' })
+    @ApiQuery({
+        name: 'taxYear',
+        description: 'Tax Year (e.g., 2024-25)',
+        required: false,
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Business income summary retrieved successfully',
+    })
+    async getBusinessIncomeSummary(
+        @Request() req: { user: { userId: string } },
+        @Param('clientId') clientId: string,
+        @Param('businessId') businessId: string,
+        @Query('nino') nino: string,
+        @Query('typeOfBusiness') typeOfBusiness: string,
+        @Query('taxYear') taxYear: string = '2024-25',
+    ) {
+        return this.hmrcService.getBusinessIncomeSummary(
+            req.user.userId,
+            nino,
+            typeOfBusiness,
+            businessId,
+            taxYear,
+        );
+    }
+
+    @Get('clients/:clientId/businesses/:businessId/bsas')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get Business Source Adjustable Summary (BSAS)' })
+    @ApiParam({ name: 'clientId', description: 'Client ID' })
+    @ApiParam({ name: 'businessId', description: 'Business ID' })
+    @ApiQuery({ name: 'nino', description: 'National Insurance Number' })
+    @ApiQuery({
+        name: 'taxYear',
+        description: 'Tax Year (e.g., 2024-25)',
+        required: false,
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'BSAS data retrieved successfully',
+    })
+    async getBusinessSourceAdjustableSummary(
+        @Request() req: { user: { userId: string } },
+        @Param('clientId') clientId: string,
+        @Param('businessId') businessId: string,
+        @Query('nino') nino: string,
+        @Query('taxYear') taxYear: string = '2024-25',
+    ) {
+        return this.hmrcService.getBusinessSourceAdjustableSummary(
+            req.user.userId,
+            nino,
+            businessId,
+            taxYear,
+        );
+    }
+
+    @Get('clients/:clientId/businesses/:businessId/obligations')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get business obligations' })
+    @ApiParam({ name: 'clientId', description: 'Client ID' })
+    @ApiParam({ name: 'businessId', description: 'Business ID' })
+    @ApiQuery({ name: 'nino', description: 'National Insurance Number' })
+    @ApiQuery({
+        name: 'taxYear',
+        description: 'Tax Year (e.g., 2024-25)',
+        required: false,
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Business obligations retrieved successfully',
+    })
+    async getBusinessObligations(
+        @Request() req: { user: { userId: string } },
+        @Param('clientId') clientId: string,
+        @Param('businessId') businessId: string,
+        @Query('nino') nino: string,
+        @Query('taxYear') taxYear: string = '2024-25',
+    ) {
+        return this.hmrcService.getBusinessObligations(
+            req.user.userId,
+            nino,
+            businessId,
+            taxYear,
+        );
+    }
+
+    @Get('clients/:clientId/businesses/:businessId/comprehensive')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get comprehensive business information' })
+    @ApiParam({ name: 'clientId', description: 'Client ID' })
+    @ApiParam({ name: 'businessId', description: 'Business ID' })
+    @ApiQuery({ name: 'nino', description: 'National Insurance Number' })
+    @ApiQuery({
+        name: 'taxYear',
+        description: 'Tax Year (e.g., 2024-25)',
+        required: false,
+    })
+    @ApiResponse({
+        status: 200,
+        description:
+            'Comprehensive business information retrieved successfully',
+    })
+    async getComprehensiveBusinessInfo(
+        @Request() req: { user: { userId: string } },
+        @Param('clientId') clientId: string,
+        @Param('businessId') businessId: string,
+        @Query('nino') nino: string,
+        @Query('typeOfBusiness') typeOfBusiness: string,
+        @Query('taxYear') taxYear: string = '2024-25',
+    ) {
+        return this.hmrcService.getComprehensiveBusinessInfo(
+            req.user.userId,
+            clientId,
+            typeOfBusiness,
+            businessId,
+            nino,
+            taxYear,
         );
     }
 

@@ -343,7 +343,6 @@ export class HmrcService {
                     },
                 },
             );
-            console.log('vaoooooooooooooooo day : ', response.data);
 
             // 204 means relationship is active
             return {
@@ -454,10 +453,6 @@ export class HmrcService {
             checkedAt: string;
         };
     }> {
-        console.log(
-            '====================================checkAgencyRelationship',
-        );
-
         let arnParam = arn;
         if (!arn) {
             arnParam = await this.getArn(agencyId);
@@ -592,11 +587,6 @@ export class HmrcService {
                 knownFact: knownFact,
             };
 
-            console.log('📤 Making invitation request:', {
-                url: `${this.apiUrl}/agents/${arnParam}/invitations`,
-                payload: requestPayload,
-            });
-
             const response = await axios.post(
                 `${this.apiUrl}/agents/${arnParam}/invitations`,
                 requestPayload,
@@ -724,11 +714,6 @@ export class HmrcService {
                 })),
             };
         } catch (error) {
-            console.error('Error getting pending invitations:', error);
-            if (axios.isAxiosError(error)) {
-                console.error('Response data:', error.response?.data);
-                console.error('Response status:', error.response?.status);
-            }
             throw new BadRequestException(
                 `Failed to get pending invitations: ${error.message}`,
             );
@@ -789,13 +774,6 @@ export class HmrcService {
             const accessToken = await this.getAccessToken(userId);
             const userArn = await this.getArn(userId);
 
-            console.log('Getting businesses for client:', clientId);
-            console.log('Client ID type:', clientIdType);
-            console.log('Known fact:', knownFact);
-            console.log('client id:', clientId);
-            console.log('ARN:', userArn);
-            console.log('Access token present:', !!accessToken);
-
             // First, check if we have authorization for this client
             const relationship = await this.checkAgencyRelationship({
                 agencyId: userId,
@@ -821,17 +799,11 @@ export class HmrcService {
                 },
             );
 
-            console.log('HMRC Businesses API Response:', response.data);
-
             return {
                 businesses: response.data || [],
             };
         } catch (error) {
-            console.error('Error getting client businesses:', error);
             if (axios.isAxiosError(error)) {
-                console.error('Response data:', error.response?.data);
-                console.error('Response status:', error.response?.status);
-
                 // Handle specific HMRC error codes
                 if (error.response?.status === 401) {
                     throw new UnauthorizedException(
@@ -856,9 +828,10 @@ export class HmrcService {
     }
 
     async getClientBusinessDetails(
-        userId: string,
+        agencyId: string,
         clientId: string,
         businessId: string,
+        nino: string,
     ): Promise<{
         businessId: string;
         businessName: string;
@@ -903,33 +876,26 @@ export class HmrcService {
         }>;
     }> {
         try {
-            const accessToken = await this.getAccessToken(userId);
-            const userArn = await this.getArn(userId);
+            const accessToken = await this.getAccessToken(agencyId);
 
-            console.log('Getting business details for:', businessId);
-            console.log('Client ID:', clientId);
-            console.log('ARN:', userArn);
-            console.log('Access token present:', !!accessToken);
-
+            // https://test-api.service.hmrc.gov.uk/individuals/business/details/{nino}/{businessId}
             const response = await axios.get(
-                `${this.apiUrl}/agents/${userArn}/clients/${clientId}/businesses/${businessId}`,
+                `${this.apiUrl}/individuals/business/details/${nino}/${businessId}`,
                 {
                     headers: {
                         Accept: 'application/vnd.hmrc.1.0+json',
                         Authorization: `Bearer ${accessToken}`,
+                        'Gov-Test-Scenario': 'DYNAMIC',
                     },
                 },
             );
-
-            console.log('HMRC Business Details API Response:', response.data);
+            console.log('====================================');
+            console.log(response.data);
+            console.log('====================================');
 
             return response.data;
         } catch (error) {
-            console.error('Error getting business details:', error);
             if (axios.isAxiosError(error)) {
-                console.error('Response data:', error.response?.data);
-                console.error('Response status:', error.response?.status);
-
                 if (error.response?.status === 401) {
                     throw new UnauthorizedException(
                         'HMRC authorization failed',
@@ -946,6 +912,298 @@ export class HmrcService {
             }
             throw new BadRequestException(
                 `Failed to get business details: ${error.message}`,
+            );
+        }
+    }
+
+    async getBusinessIncomeSummary(
+        agencyId: string,
+        nino: string,
+        businessId: string,
+        taxYear: string,
+        typeOfBusiness: string,
+    ): Promise<{
+        totalIncome: number;
+        totalExpenses: number;
+        netProfit: number;
+        incomeBreakdown: {
+            category: string;
+            amount: number;
+        }[];
+        expenseBreakdown: {
+            category: string;
+            amount: number;
+        }[];
+        accountingPeriod: {
+            startDate: string;
+            endDate: string;
+        };
+    }> {
+        try {
+            const accessToken = await this.getAccessToken(agencyId);
+            console.log('====================================');
+            console.log(
+                `${this.apiUrl}/individuals/self-assessment/income-summary/${nino}/${typeOfBusiness}/${taxYear}/${businessId}`,
+            );
+            console.log('====================================');
+
+            // https://test-api.service.hmrc.gov.uk/individuals/self-assessment/income-summary/{nino}/{typeOfBusiness}/{taxYear}/{businessId}
+            // Get business income source summary
+            const response = await axios.get(
+                `${this.apiUrl}/individuals/self-assessment/income-summary/${nino}/${typeOfBusiness}/${taxYear}/${businessId}`,
+                {
+                    headers: {
+                        Accept: 'application/vnd.hmrc.1.0+json',
+                        Authorization: `Bearer ${accessToken}`,
+                        'Gov-Test-Scenario': 'N/A - DEFAULT',
+                    },
+                },
+            );
+
+            return {
+                totalIncome: response.data.totalIncome || 0,
+                totalExpenses: response.data.totalExpenses || 0,
+                netProfit: response.data.netProfit || 0,
+                incomeBreakdown: response.data.incomeBreakdown || [],
+                expenseBreakdown: response.data.expenseBreakdown || [],
+                accountingPeriod: response.data.accountingPeriod || {
+                    startDate: '',
+                    endDate: '',
+                },
+            };
+        } catch (error) {
+            console.log('====================================');
+            console.log(error);
+            console.log('====================================');
+            if (axios.isAxiosError(error)) {
+                if (error.response?.status === 404) {
+                    // Return default data if no income summary found
+                    return {
+                        totalIncome: 0,
+                        totalExpenses: 0,
+                        netProfit: 0,
+                        incomeBreakdown: [],
+                        expenseBreakdown: [],
+                        accountingPeriod: {
+                            startDate: '',
+                            endDate: '',
+                        },
+                    };
+                }
+            }
+            throw new BadRequestException(
+                `Failed to get business income summary: ${error.message}`,
+            );
+        }
+    }
+
+    async getBusinessSourceAdjustableSummary(
+        agencyId: string,
+        nino: string,
+        businessId: string,
+        taxYear: string,
+    ): Promise<{
+        bsasId: string;
+        accountingPeriod: {
+            startDate: string;
+            endDate: string;
+        };
+        totalIncome: number;
+        totalExpenses: number;
+        netProfit: number;
+        adjustments: {
+            type: string;
+            description: string;
+            amount: number;
+        }[];
+        status: 'draft' | 'submitted' | 'accepted' | 'rejected';
+    }> {
+        try {
+            const accessToken = await this.getAccessToken(agencyId);
+
+            // Get BSAS list first
+            const bsasListResponse = await axios.get(
+                `${this.apiUrl}/individuals/business/${businessId}/bsas/${taxYear}`,
+                {
+                    headers: {
+                        Accept: 'application/vnd.hmrc.1.0+json',
+                        Authorization: `Bearer ${accessToken}`,
+                        // 'Gov-Test-Scenario': 'UNSPECIFIED',
+                    },
+                },
+            );
+
+            if (bsasListResponse.data && bsasListResponse.data.length > 0) {
+                const latestBsas = bsasListResponse.data[0];
+
+                // Get specific BSAS details
+                const bsasResponse = await axios.get(
+                    `${this.apiUrl}/individuals/business/${businessId}/bsas/${latestBsas.bsasId}`,
+                    {
+                        headers: {
+                            Accept: 'application/vnd.hmrc.1.0+json',
+                            Authorization: `Bearer ${accessToken}`,
+                        },
+                    },
+                );
+
+                return {
+                    bsasId: latestBsas.bsasId,
+                    accountingPeriod: bsasResponse.data.accountingPeriod,
+                    totalIncome: bsasResponse.data.totalIncome || 0,
+                    totalExpenses: bsasResponse.data.totalExpenses || 0,
+                    netProfit: bsasResponse.data.netProfit || 0,
+                    adjustments: bsasResponse.data.adjustments || [],
+                    status: bsasResponse.data.status || 'draft',
+                };
+            }
+
+            // Return default if no BSAS found
+            return {
+                bsasId: '',
+                accountingPeriod: {
+                    startDate: '',
+                    endDate: '',
+                },
+                totalIncome: 0,
+                totalExpenses: 0,
+                netProfit: 0,
+                adjustments: [],
+                status: 'draft',
+            };
+        } catch (error) {
+            if (axios.isAxiosError(error)) {
+                if (error.response?.status === 404) {
+                    // Return default data if no BSAS found
+                    return {
+                        bsasId: '',
+                        accountingPeriod: {
+                            startDate: '',
+                            endDate: '',
+                        },
+                        totalIncome: 0,
+                        totalExpenses: 0,
+                        netProfit: 0,
+                        adjustments: [],
+                        status: 'draft',
+                    };
+                }
+            }
+            throw new BadRequestException(
+                `Failed to get BSAS: ${error.message}`,
+            );
+        }
+    }
+
+    async getBusinessObligations(
+        agencyId: string,
+        nino: string,
+        businessId: string,
+        taxYear: string,
+    ): Promise<{
+        obligations: Array<{
+            obligationId: string;
+            obligationType: string;
+            dueDate: string;
+            status: 'open' | 'fulfilled' | 'overdue';
+            periodKey: string;
+            startDate: string;
+            endDate: string;
+        }>;
+    }> {
+        try {
+            const accessToken = await this.getAccessToken(agencyId);
+
+            const response = await axios.get(
+                `${this.apiUrl}/individuals/business/${businessId}/obligations/${taxYear}`,
+                {
+                    headers: {
+                        Accept: 'application/vnd.hmrc.1.0+json',
+                        Authorization: `Bearer ${accessToken}`,
+                        // 'Gov-Test-Scenario': 'UNSPECIFIED',
+                    },
+                },
+            );
+
+            return {
+                obligations: response.data.obligations || [],
+            };
+        } catch (error) {
+            if (axios.isAxiosError(error)) {
+                if (error.response?.status === 404) {
+                    return { obligations: [] };
+                }
+            }
+            throw new BadRequestException(
+                `Failed to get business obligations: ${error.message}`,
+            );
+        }
+    }
+
+    async getComprehensiveBusinessInfo(
+        agencyId: string,
+        clientId: string,
+        typeOfBusiness: string,
+        businessId: string,
+        nino: string,
+        taxYear: string = '2024-25',
+    ): Promise<{
+        businessDetails: any;
+        incomeSummary: any;
+        bsasData: any;
+        obligations: any;
+    }> {
+        try {
+            // Get all business information in parallel
+            const [businessDetails, incomeSummary, bsasData, obligations] =
+                await Promise.allSettled([
+                    this.getClientBusinessDetails(
+                        agencyId,
+                        clientId,
+                        businessId,
+                        nino,
+                    ),
+                    this.getBusinessIncomeSummary(
+                        agencyId,
+                        nino,
+                        businessId,
+                        taxYear,
+                        typeOfBusiness,
+                    ),
+                    this.getBusinessSourceAdjustableSummary(
+                        agencyId,
+                        nino,
+                        businessId,
+                        taxYear,
+                    ),
+                    this.getBusinessObligations(
+                        agencyId,
+                        nino,
+                        businessId,
+                        taxYear,
+                    ),
+                ]);
+
+            return {
+                businessDetails:
+                    businessDetails.status === 'fulfilled'
+                        ? businessDetails.value
+                        : null,
+                incomeSummary:
+                    incomeSummary.status === 'fulfilled'
+                        ? incomeSummary.value
+                        : null,
+                bsasData:
+                    bsasData.status === 'fulfilled' ? bsasData.value : null,
+                obligations:
+                    obligations.status === 'fulfilled'
+                        ? obligations.value
+                        : null,
+            };
+        } catch (error) {
+            console.error('Error getting comprehensive business info:', error);
+            throw new BadRequestException(
+                `Failed to get comprehensive business information: ${error.message}`,
             );
         }
     }

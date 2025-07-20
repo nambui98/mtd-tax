@@ -140,10 +140,147 @@ export const hmrcService = {
     getClientBusinessDetails: async (
         clientId: string,
         businessId: string,
+        nino: string,
     ): Promise<Business> => {
         const response = await api.get(
-            `/hmrc/clients/${clientId}/businesses/${businessId}`,
+            `/hmrc/clients/${clientId}/businesses/${businessId}?nino=${nino}`,
         );
         return response.data;
+    },
+
+    getBusinessIncomeSummary: async (
+        clientId: string,
+        businessId: string,
+        nino: string,
+        taxYear: string = '2023-24',
+    ): Promise<{
+        totalIncome: number;
+        totalExpenses: number;
+        netProfit: number;
+        incomeBreakdown: Array<{
+            category: string;
+            amount: number;
+        }>;
+        expenseBreakdown: Array<{
+            category: string;
+            amount: number;
+        }>;
+        accountingPeriod: {
+            startDate: string;
+            endDate: string;
+        };
+    }> => {
+        const response = await api.get(
+            `/hmrc/clients/${clientId}/businesses/${businessId}/income-summary?nino=${nino}&taxYear=${taxYear}`,
+        );
+        return response.data;
+    },
+
+    getBusinessSourceAdjustableSummary: async (
+        clientId: string,
+        businessId: string,
+        nino: string,
+        taxYear: string = '2023-24',
+    ): Promise<{
+        bsasId: string;
+        accountingPeriod: {
+            startDate: string;
+            endDate: string;
+        };
+        totalIncome: number;
+        totalExpenses: number;
+        netProfit: number;
+        adjustments: Array<{
+            type: string;
+            description: string;
+            amount: number;
+        }>;
+        status: 'draft' | 'submitted' | 'accepted' | 'rejected';
+    }> => {
+        const response = await api.get(
+            `/hmrc/clients/${clientId}/businesses/${businessId}/bsas?nino=${nino}&taxYear=${taxYear}`,
+        );
+        return response.data;
+    },
+
+    getBusinessObligations: async (
+        clientId: string,
+        businessId: string,
+        nino: string,
+        taxYear: string = '2023-24',
+    ): Promise<{
+        obligations: Array<{
+            obligationId: string;
+            obligationType: string;
+            dueDate: string;
+            status: 'open' | 'fulfilled' | 'overdue';
+            periodKey: string;
+            startDate: string;
+            endDate: string;
+        }>;
+    }> => {
+        const response = await api.get(
+            `/hmrc/clients/${clientId}/businesses/${businessId}/obligations?nino=${nino}&taxYear=${taxYear}`,
+        );
+        return response.data;
+    },
+
+    getComprehensiveBusinessInfo: async (
+        clientId: string,
+        businessId: string,
+        nino: string,
+        typeOfBusiness: string,
+        taxYear: string = '2023-24',
+    ): Promise<{
+        businessDetails: Business | null;
+        incomeSummary: {
+            totalIncome: number;
+            totalExpenses: number;
+            netProfit: number;
+            incomeBreakdown: Array<{
+                category: string;
+                amount: number;
+            }>;
+            expenseBreakdown: Array<{
+                category: string;
+                amount: number;
+            }>;
+            accountingPeriod: {
+                startDate: string;
+                endDate: string;
+            };
+        } | null;
+        bsasData: {
+            bsasId: string;
+            accountingPeriod: {
+                startDate: string;
+                endDate: string;
+            };
+            totalIncome: number;
+            totalExpenses: number;
+            netProfit: number;
+            adjustments: Array<{
+                type: string;
+                description: string;
+                amount: number;
+            }>;
+            status: 'draft' | 'submitted' | 'accepted' | 'rejected';
+        } | null;
+        obligations: {
+            obligations: Array<{
+                obligationId: string;
+                obligationType: string;
+                dueDate: string;
+                status: 'open' | 'fulfilled' | 'overdue';
+                periodKey: string;
+                startDate: string;
+                endDate: string;
+            }>;
+        } | null;
+    }> => {
+        const response = await api.get(
+            `/hmrc/clients/${clientId}/businesses/${businessId}/comprehensive?nino=${nino}&taxYear=${taxYear}&typeOfBusiness=${typeOfBusiness}`,
+        );
+        return response.data.data;
     },
 };

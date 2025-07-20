@@ -198,13 +198,10 @@ export default function MainContent({}: Props) {
         requestRelationship();
     };
 
-    console.log(staffUsers);
     const onSubmit = (values: InsertClient) => {
-        console.log(values);
-        debugger;
         createClient(values);
     };
-    console.log(form.formState.errors);
+
     return (
         <>
             {/* Test Data Component - Only show in development */}

@@ -336,9 +336,6 @@ export class ClientsController {
         },
     })
     async findClientById(@Param('id') id: string) {
-        console.log('====================================');
-        console.log(id);
-        console.log('====================================');
         return this.clientsService.findClientById(id);
     }
 
