@@ -38,6 +38,63 @@ import {
 import { clientsService } from '@/services/clients';
 import { hmrcService } from '@/services/hmrc';
 import { useSession } from 'next-auth/react';
+import ClientHeader from './client-header';
+import ClientTabNav from './client-tab-nav';
+
+export const getInvitationStatusBadge = (status?: string) => {
+    switch (status) {
+        case 'Accepted':
+            return (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Authorized
+                </span>
+            );
+        case 'Pending':
+            return (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                    Pending
+                </span>
+            );
+        case 'Rejected':
+            return (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    Rejected
+                </span>
+            );
+        default:
+            return (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                    Not Requested
+                </span>
+            );
+    }
+};
+
+export const getBusinessBadgeColor = (businessType: string) => {
+    switch (businessType) {
+        case 'self-employed':
+            return 'bg-blue-100 text-blue-800';
+        case 'property':
+            return 'bg-cyan-100 text-cyan-800';
+        case 'foreign':
+            return 'bg-pink-100 text-pink-800';
+        default:
+            return 'bg-gray-100 text-gray-600';
+    }
+};
+
+export const getBusinessIcon = (businessType: string) => {
+    switch (businessType) {
+        case 'self-employed':
+            return <Briefcase className="w-3 h-3" />;
+        case 'property':
+            return <Home className="w-3 h-3" />;
+        case 'foreign':
+            return <Globe2 className="w-3 h-3" />;
+        default:
+            return <Briefcase className="w-3 h-3" />;
+    }
+};
 
 type Props = {
     clientId: string;
@@ -81,12 +138,13 @@ export default function ClientContent({ clientId }: Props) {
         useQuery({
             queryKey: ['hmrc-businesses', client?.utr],
             queryFn: () =>
-                hmrcService.getClientBusinesses(client?.nino as string, 'ni'),
+                hmrcService.getClientBusinesses(
+                    client?.nino as string,
+                    'ni',
+                    client?.postcode as string,
+                ),
             enabled: !!client?.nino && !!client?.id,
         });
-    console.log('====================================');
-    console.log(client);
-    console.log('====================================');
 
     if (isLoadingClient) {
         return (
@@ -104,265 +162,21 @@ export default function ClientContent({ clientId }: Props) {
         );
     }
 
-    const getInvitationStatusBadge = (status?: string) => {
-        switch (status) {
-            case 'Accepted':
-                return (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Authorized
-                    </span>
-                );
-            case 'Pending':
-                return (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        Pending
-                    </span>
-                );
-            case 'Rejected':
-                return (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        Rejected
-                    </span>
-                );
-            default:
-                return (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                        Not Requested
-                    </span>
-                );
-        }
-    };
-
-    const getBusinessBadgeColor = (businessType: string) => {
-        switch (businessType) {
-            case 'self-employed':
-                return 'bg-blue-100 text-blue-800';
-            case 'property':
-                return 'bg-cyan-100 text-cyan-800';
-            case 'foreign':
-                return 'bg-pink-100 text-pink-800';
-            default:
-                return 'bg-gray-100 text-gray-600';
-        }
-    };
-
-    const getBusinessIcon = (businessType: string) => {
-        switch (businessType) {
-            case 'self-employed':
-                return <Briefcase className="w-3 h-3" />;
-            case 'property':
-                return <Home className="w-3 h-3" />;
-            case 'foreign':
-                return <Globe2 className="w-3 h-3" />;
-            default:
-                return <Briefcase className="w-3 h-3" />;
-        }
-    };
-
     return (
         <div className="space-y-6">
-            {/* Client Header */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex justify-between items-start">
-                    <div className="flex items-center space-x-4">
-                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-                            <User className="w-6 h-6 text-gray-500" />
-                        </div>
-                        <div className="flex-1">
-                            <h1 className="text-2xl font-semibold text-gray-900">
-                                {client.firstName} {client.lastName}
-                            </h1>
-                            <div className="flex items-center space-x-3 mt-1">
-                                <span className="text-sm text-gray-500">
-                                    {client.clientType}
-                                </span>
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                    Critical Issues
-                                </span>
-                            </div>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                                <span
-                                    className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getBusinessBadgeColor('self-employed')}`}
-                                >
-                                    {getBusinessIcon('self-employed')}
-                                    <span className="ml-1">
-                                        Consulting (Self-Employed)
-                                    </span>
-                                </span>
-                                <span
-                                    className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getBusinessBadgeColor('property')}`}
-                                >
-                                    {getBusinessIcon('property')}
-                                    <span className="ml-1">
-                                        Property Rental
-                                    </span>
-                                </span>
-                                <span
-                                    className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getBusinessBadgeColor('foreign')}`}
-                                >
-                                    {getBusinessIcon('foreign')}
-                                    <span className="ml-1">Foreign Income</span>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex space-x-3">
-                        <button className="inline-flex items-center px-4 py-2 border border-primary text-primary rounded-md hover:bg-primary hover:text-white transition-colors">
-                            <Mail className="w-4 h-4 mr-2" />
-                            Contact Client
-                        </button>
-                        <button className="inline-flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors">
-                            <Edit className="w-4 h-4 mr-2" />
-                            Edit Details
-                        </button>
-                        <button className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors">
-                            <ClipboardList className="w-4 h-4 mr-2" />
-                            MTD Submission
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <ClientHeader
+                client={client}
+                businesses={hmrcBusinesses?.businesses.listOfBusinesses || []}
+            />
 
             {/* Tabs Navigation */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="flex border-b border-gray-200">
-                    <button
-                        onClick={() => setActiveTab('overview')}
-                        className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'overview'
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        <Info className="w-4 h-4 inline mr-2" />
-                        Overview
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('documents')}
-                        className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'documents'
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        <FileText className="w-4 h-4 inline mr-2" />
-                        Documents
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('submissions')}
-                        className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'submissions'
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        <ClipboardList className="w-4 h-4 inline mr-2" />
-                        Submissions
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('financials')}
-                        className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'financials'
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        <PoundSterling className="w-4 h-4 inline mr-2" />
-                        Financials
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('transactions')}
-                        className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'transactions'
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        <ArrowLeftRight className="w-4 h-4 inline mr-2" />
-                        Transactions
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('activity')}
-                        className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'activity'
-                                ? 'border-primary text-primary'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        <History className="w-4 h-4 inline mr-2" />
-                        Activity
-                    </button>
-                </div>
-
-                {/* Business Tabs (Secondary Navigation) */}
-                <div className="flex border-b border-gray-200">
-                    <button
-                        onClick={() => setActiveBusiness('all')}
-                        className={`px-6 py-3 text-sm font-medium relative transition-colors ${
-                            activeBusiness === 'all'
-                                ? 'text-primary bg-gray-50'
-                                : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        <Globe className="w-4 h-4 inline mr-2" />
-                        All Businesses
-                        {activeBusiness === 'all' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveBusiness('consulting')}
-                        className={`px-6 py-3 text-sm font-medium relative transition-colors ${
-                            activeBusiness === 'consulting'
-                                ? 'text-primary bg-gray-50'
-                                : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        <Briefcase className="w-4 h-4 inline mr-2" />
-                        Consulting
-                        <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
-                            Self-Employed
-                        </span>
-                        {activeBusiness === 'consulting' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveBusiness('property')}
-                        className={`px-6 py-3 text-sm font-medium relative transition-colors ${
-                            activeBusiness === 'property'
-                                ? 'text-primary bg-gray-50'
-                                : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        <Home className="w-4 h-4 inline mr-2" />
-                        Property Rental
-                        <span className="ml-2 px-2 py-0.5 text-xs bg-cyan-100 text-cyan-800 rounded">
-                            Property
-                        </span>
-                        {activeBusiness === 'property' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveBusiness('foreign')}
-                        className={`px-6 py-3 text-sm font-medium relative transition-colors ${
-                            activeBusiness === 'foreign'
-                                ? 'text-primary bg-gray-50'
-                                : 'text-gray-500 hover:text-gray-700'
-                        }`}
-                    >
-                        <Globe2 className="w-4 h-4 inline mr-2" />
-                        Foreign Income
-                        <span className="ml-2 px-2 py-0.5 text-xs bg-pink-100 text-pink-800 rounded">
-                            Foreign
-                        </span>
-                        {activeBusiness === 'foreign' && (
-                            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
-                        )}
-                    </button>
-                </div>
-            </div>
+            <ClientTabNav
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                activeBusiness={activeBusiness}
+                setActiveBusiness={setActiveBusiness}
+                businesses={hmrcBusinesses?.businesses.listOfBusinesses || []}
+            />
 
             {/* Content based on active tab */}
             {activeTab === 'financials' && (
@@ -872,160 +686,176 @@ export default function ClientContent({ clientId }: Props) {
             </div>
 
             {/* HMRC Businesses */}
-            {hmrcBusinesses && hmrcBusinesses.businesses.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                        HMRC Businesses
-                    </h3>
-                    {isLoadingHmrcBusinesses ? (
-                        <div className="flex items-center justify-center py-8">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {hmrcBusinesses.businesses.map(
-                                (business, index) => (
-                                    <div
-                                        key={business.businessId}
-                                        className="border border-gray-200 rounded-lg p-4"
-                                    >
-                                        <div className="flex justify-between items-start mb-3">
-                                            <div>
-                                                <h4 className="text-lg font-medium text-gray-900">
-                                                    {business.businessName}
-                                                </h4>
-                                                {business.tradingName && (
-                                                    <p className="text-sm text-gray-600">
-                                                        Trading as:{' '}
-                                                        {business.tradingName}
-                                                    </p>
-                                                )}
+            {hmrcBusinesses &&
+                hmrcBusinesses.businesses.listOfBusinesses.length > 0 && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                            HMRC Businesses
+                        </h3>
+                        {isLoadingHmrcBusinesses ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {hmrcBusinesses.businesses.listOfBusinesses.map(
+                                    (business, index) => (
+                                        <div
+                                            key={business.businessId}
+                                            className="border border-gray-200 rounded-lg p-4"
+                                        >
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <h4 className="text-lg font-medium text-gray-900">
+                                                        {
+                                                            business.typeOfBusiness
+                                                        }
+                                                    </h4>
+                                                    {business.tradingName && (
+                                                        <p className="text-sm text-gray-600">
+                                                            Trading as:{' '}
+                                                            {
+                                                                business.tradingName
+                                                            }
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                    {business.typeOfBusiness}
+                                                </span>
                                             </div>
-                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                {business.businessType}
-                                            </span>
-                                        </div>
 
-                                        <div className="grid grid-cols-2 gap-4 text-sm">
-                                            <div>
-                                                <span className="font-medium text-gray-700">
-                                                    Business ID:
-                                                </span>
-                                                <span className="ml-2 text-gray-600">
-                                                    {business.businessId}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span className="font-medium text-gray-700">
-                                                    Accounting Type:
-                                                </span>
-                                                <span className="ml-2 text-gray-600">
-                                                    {business.accountingType}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span className="font-medium text-gray-700">
-                                                    Commencement:
-                                                </span>
-                                                <span className="ml-2 text-gray-600">
-                                                    {new Date(
-                                                        business.commencementDate,
-                                                    ).toLocaleDateString()}
-                                                </span>
-                                            </div>
-                                            {business.cessationDate && (
+                                            <div className="grid grid-cols-2 gap-4 text-sm">
                                                 <div>
                                                     <span className="font-medium text-gray-700">
-                                                        Cessation:
+                                                        Business ID:
                                                     </span>
                                                     <span className="ml-2 text-gray-600">
-                                                        {new Date(
-                                                            business.cessationDate,
-                                                        ).toLocaleDateString()}
+                                                        {business.businessId}
                                                     </span>
                                                 </div>
-                                            )}
-                                        </div>
-
-                                        {business.address && (
-                                            <div className="mt-3 pt-3 border-t border-gray-100">
-                                                <span className="font-medium text-gray-700">
-                                                    Address:
-                                                </span>
-                                                <div className="mt-1 text-sm text-gray-600">
-                                                    <div>
-                                                        {business.address.line1}
-                                                    </div>
-                                                    {business.address.line2 && (
-                                                        <div>
-                                                            {
-                                                                business.address
-                                                                    .line2
-                                                            }
-                                                        </div>
-                                                    )}
-                                                    {business.address.line3 && (
-                                                        <div>
-                                                            {
-                                                                business.address
-                                                                    .line3
-                                                            }
-                                                        </div>
-                                                    )}
-                                                    {business.address.line4 && (
-                                                        <div>
-                                                            {
-                                                                business.address
-                                                                    .line4
-                                                            }
-                                                        </div>
-                                                    )}
-                                                    <div>
+                                                {/* <div>
+                                                    <span className="font-medium text-gray-700">
+                                                        Accounting Type:
+                                                    </span>
+                                                    <span className="ml-2 text-gray-600">
                                                         {
-                                                            business.address
-                                                                .postcode
+                                                            business.accountingType
+                                                        }
+                                                    </span>
+                                                </div> */}
+                                                <div>
+                                                    <span className="font-medium text-gray-700">
+                                                        Commencement:
+                                                    </span>
+                                                    <span className="ml-2 text-gray-600">
+                                                        {/* {new Date(
+                                                            business.commencementDate,
+                                                        ).toLocaleDateString()} */}
+                                                    </span>
+                                                </div>
+                                                {/* {business.cessationDate && (
+                                                    <div>
+                                                        <span className="font-medium text-gray-700">
+                                                            Cessation:
+                                                        </span>
+                                                        <span className="ml-2 text-gray-600">
+                                                            {new Date(
+                                                                business.cessationDate,
+                                                            ).toLocaleDateString()}
+                                                        </span>
+                                                    </div>
+                                                )} */}
+                                            </div>
+
+                                            {/* {business.address && (
+                                                <div className="mt-3 pt-3 border-t border-gray-100">
+                                                    <span className="font-medium text-gray-700">
+                                                        Address:
+                                                    </span>
+                                                    <div className="mt-1 text-sm text-gray-600">
+                                                        <div>
+                                                            {
+                                                                business.address
+                                                                    .line1
+                                                            }
+                                                        </div>
+                                                        {business.address
+                                                            .line2 && (
+                                                            <div>
+                                                                {
+                                                                    business
+                                                                        .address
+                                                                        .line2
+                                                                }
+                                                            </div>
+                                                        )}
+                                                        {business.address
+                                                            .line3 && (
+                                                            <div>
+                                                                {
+                                                                    business
+                                                                        .address
+                                                                        .line3
+                                                                }
+                                                            </div>
+                                                        )}
+                                                        {business.address
+                                                            .line4 && (
+                                                            <div>
+                                                                {
+                                                                    business
+                                                                        .address
+                                                                        .line4
+                                                                }
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            {
+                                                                business.address
+                                                                    .postcode
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )} */}
+
+                                            {/* {business.accountingPeriod && (
+                                                <div className="mt-3 pt-3 border-t border-gray-100">
+                                                    <span className="font-medium text-gray-700">
+                                                        Accounting Period:
+                                                    </span>
+                                                    <div className="mt-1 text-sm text-gray-600">
+                                                        {new Date(
+                                                            business.accountingPeriod.startDate,
+                                                        ).toLocaleDateString()}{' '}
+                                                        -{' '}
+                                                        {new Date(
+                                                            business.accountingPeriod.endDate,
+                                                        ).toLocaleDateString()}
+                                                    </div>
+                                                </div>
+                                            )} */}
+
+                                            {/* {business.businessDescription && (
+                                                <div className="mt-3 pt-3 border-t border-gray-100">
+                                                    <span className="font-medium text-gray-700">
+                                                        Description:
+                                                    </span>
+                                                    <div className="mt-1 text-sm text-gray-600">
+                                                        {
+                                                            business.businessDescription
                                                         }
                                                     </div>
                                                 </div>
-                                            </div>
-                                        )}
-
-                                        {business.accountingPeriod && (
-                                            <div className="mt-3 pt-3 border-t border-gray-100">
-                                                <span className="font-medium text-gray-700">
-                                                    Accounting Period:
-                                                </span>
-                                                <div className="mt-1 text-sm text-gray-600">
-                                                    {new Date(
-                                                        business.accountingPeriod.startDate,
-                                                    ).toLocaleDateString()}{' '}
-                                                    -{' '}
-                                                    {new Date(
-                                                        business.accountingPeriod.endDate,
-                                                    ).toLocaleDateString()}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {business.businessDescription && (
-                                            <div className="mt-3 pt-3 border-t border-gray-100">
-                                                <span className="font-medium text-gray-700">
-                                                    Description:
-                                                </span>
-                                                <div className="mt-1 text-sm text-gray-600">
-                                                    {
-                                                        business.businessDescription
-                                                    }
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                ),
-                            )}
-                        </div>
-                    )}
-                </div>
-            )}
+                                            )} */}
+                                        </div>
+                                    ),
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
         </div>
     );
 }

@@ -21,6 +21,7 @@ import {
     usersTable,
 } from '@workspace/database/dist/schema';
 import { addSeconds } from 'date-fns';
+import { SCOPES } from 'src/config/constants';
 
 @Injectable()
 export class HmrcService {
@@ -62,7 +63,7 @@ export class HmrcService {
             response_type: 'code',
             client_id: this.clientId,
             redirect_uri: this.redirectUri,
-            scope: 'read:check-relationship write:cancel-invitations read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
+            scope: SCOPES,
             state,
         });
 
@@ -86,7 +87,7 @@ export class HmrcService {
                     client_secret: this.clientSecret,
                     redirect_uri: this.redirectUri,
                     code,
-                    scope: 'read:check-relationship write:cancel-invitations read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
+                    scope: SCOPES,
                 }),
                 {
                     headers: {
@@ -135,7 +136,7 @@ export class HmrcService {
                     client_id: this.clientId,
                     client_secret: this.clientSecret,
                     refresh_token: currentToken.refreshToken,
-                    scope: 'read:check-relationship write:cancel-invitations read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
+                    scope: SCOPES,
                 }),
                 {
                     headers: {
@@ -294,13 +295,19 @@ export class HmrcService {
         return response.data;
     }
 
-    async getClientAgencyRelationshipByUtr(
-        userId: string,
-        arn: string,
-        utr: string,
-        service: string[] = ['MTD-IT'],
-        knownFact?: string,
-    ): Promise<{
+    async getClientAgencyRelationshipByUtr({
+        agencyId,
+        arn,
+        nino,
+        service = ['MTD-IT'],
+        knownFact,
+    }: {
+        agencyId: string;
+        arn?: string;
+        nino: string;
+        service?: string[];
+        knownFact?: string;
+    }): Promise<{
         isAuthorised: boolean;
         relationship?: {
             service: string[];
@@ -312,18 +319,18 @@ export class HmrcService {
         };
     }> {
         try {
-            const accessToken = await this.getAccessToken(userId);
-            const arn = await this.getArn(userId);
+            const accessToken = await this.getAccessToken(agencyId);
+            let arnParam = arn;
+            if (!arn) {
+                arnParam = await this.getArn(agencyId);
+            }
             // Prepare the request payload
             const requestPayload = {
                 service,
-                clientIdType: 'utr',
-                clientId: utr,
+                clientIdType: 'ni',
+                clientId: nino,
                 ...(knownFact && { knownFact }),
             };
-            console.log('====================================1');
-            console.log(requestPayload);
-            console.log('====================================1');
 
             const response = await axios.post(
                 `${this.apiUrl}/agents/${arn}/relationships`,
@@ -344,9 +351,9 @@ export class HmrcService {
                 relationship: {
                     service,
                     status: 'active',
-                    arn,
-                    clientId: utr,
-                    clientIdType: 'utr',
+                    arn: arnParam ?? '',
+                    clientId: nino,
+                    clientIdType: 'ni',
                     checkedAt: new Date().toISOString(),
                 },
             };
@@ -358,9 +365,9 @@ export class HmrcService {
                     relationship: {
                         service,
                         status: 'inactive',
-                        arn,
-                        clientId: utr,
-                        clientIdType: 'utr',
+                        arn: arn ?? '',
+                        clientId: nino,
+                        clientIdType: 'ni',
                         checkedAt: new Date().toISOString(),
                     },
                 };
@@ -426,11 +433,17 @@ export class HmrcService {
         }
     }
 
-    async checkAgencyRelationship(
-        userId: string,
-        agencyId: string,
-        utr: string,
-    ): Promise<{
+    async checkAgencyRelationship({
+        agencyId,
+        arn,
+        knownFact,
+        nino,
+    }: {
+        agencyId: string;
+        arn?: string;
+        knownFact: string;
+        nino: string;
+    }): Promise<{
         hasRelationship: boolean;
         relationshipData?: {
             service: string[];
@@ -441,28 +454,28 @@ export class HmrcService {
             checkedAt: string;
         };
     }> {
-        try {
-            // Validate inputs
-            if (!/^\d{10}$/.test(utr)) {
-                throw new BadRequestException(
-                    'Invalid UTR format. UTR must be exactly 10 digits.',
-                );
-            }
+        console.log(
+            '====================================checkAgencyRelationship',
+        );
 
+        let arnParam = arn;
+        if (!arn) {
+            arnParam = await this.getArn(agencyId);
+        }
+        try {
             // if (!/^ARN\d+$/.test(agencyId)) {
             //     throw new BadRequestException(
             //         'Invalid agency ID format. Agency ID must start with ARN followed by numbers.',
             //     );
             // }
-            const arn = await this.getArn(userId);
-
             // Check relationship using existing method
-            const relationship = await this.getClientAgencyRelationshipByUtr(
-                userId,
-                arn,
-                utr,
-                ['MTD-IT', 'MTD-VAT'], // Check both services
-            );
+            const relationship = await this.getClientAgencyRelationshipByUtr({
+                agencyId,
+                arn: arnParam,
+                nino,
+                knownFact,
+                service: ['MTD-IT'], // Check both services
+            });
 
             return {
                 hasRelationship: relationship.isAuthorised,
@@ -477,9 +490,9 @@ export class HmrcService {
                     relationshipData: {
                         service: ['MTD-IT', 'MTD-VAT'],
                         status: 'inactive',
-                        arn: agencyId,
-                        clientId: utr,
-                        clientIdType: 'utr',
+                        arn: arnParam ?? '',
+                        clientId: nino,
+                        clientIdType: 'ni',
                         checkedAt: new Date().toISOString(),
                     },
                 };
@@ -517,9 +530,9 @@ export class HmrcService {
                 relationshipData: {
                     service: ['MTD-IT', 'MTD-VAT'],
                     status: 'inactive',
-                    arn: agencyId,
-                    clientId: utr,
-                    clientIdType: 'utr',
+                    arn: arnParam ?? '',
+                    clientId: nino,
+                    clientIdType: 'ni',
                     checkedAt: new Date().toISOString(),
                 },
             };
@@ -726,6 +739,7 @@ export class HmrcService {
         userId: string,
         clientId: string,
         clientIdType: 'ni' | 'utr' = 'utr',
+        knownFact: string,
     ): Promise<{
         businesses: Array<{
             businessId: string;
@@ -777,15 +791,18 @@ export class HmrcService {
 
             console.log('Getting businesses for client:', clientId);
             console.log('Client ID type:', clientIdType);
+            console.log('Known fact:', knownFact);
+            console.log('client id:', clientId);
             console.log('ARN:', userArn);
             console.log('Access token present:', !!accessToken);
 
             // First, check if we have authorization for this client
-            const relationship = await this.checkAgencyRelationship(
-                userId,
-                userArn,
-                clientId,
-            );
+            const relationship = await this.checkAgencyRelationship({
+                agencyId: userId,
+                arn: userArn,
+                nino: clientId,
+                knownFact,
+            });
 
             if (!relationship.hasRelationship) {
                 throw new UnauthorizedException(
@@ -795,7 +812,7 @@ export class HmrcService {
 
             // Get businesses for the client
             const response = await axios.get(
-                `${this.apiUrl}/agents/${userArn}/clients/${clientId}/businesses`,
+                `${this.apiUrl}/individuals/business/details/${clientId}/list`,
                 {
                     headers: {
                         Accept: 'application/vnd.hmrc.1.0+json',
@@ -807,7 +824,7 @@ export class HmrcService {
             console.log('HMRC Businesses API Response:', response.data);
 
             return {
-                businesses: response.data.businesses || [],
+                businesses: response.data || [],
             };
         } catch (error) {
             console.error('Error getting client businesses:', error);

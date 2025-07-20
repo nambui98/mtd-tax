@@ -165,12 +165,14 @@ export const clientsService = {
         return response.data.data;
     },
     checkAgencyRelationship: async (
-        utr: string,
-        agencyId: string,
+        nino: string,
+        arn?: string,
+        knownFact?: string,
     ): Promise<AgencyRelationshipResponse> => {
         const response = await api.post('/hmrc/check-agency-relationship', {
-            utr,
-            agencyId,
+            nino,
+            ...(arn && { arn }),
+            ...(knownFact && { knownFact }),
         });
         return response.data;
     },

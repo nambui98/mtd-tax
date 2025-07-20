@@ -64,8 +64,25 @@ export type Business = {
     }>;
 };
 
+export type Businesses = {
+    listOfBusinesses: ListOfBusiness[];
+    links: Link[];
+};
+
+export type Link = {
+    href: string;
+    method: string;
+    rel: string;
+};
+
+export type ListOfBusiness = {
+    typeOfBusiness: string;
+    businessId: string;
+    tradingName: string;
+    links: Link[];
+};
 export type ClientBusinessesResponse = {
-    businesses: Business[];
+    businesses: Businesses;
 };
 
 export const hmrcService = {
@@ -112,9 +129,10 @@ export const hmrcService = {
     getClientBusinesses: async (
         clientId: string,
         clientIdType: 'ni' | 'utr' = 'utr',
+        knownFact: string,
     ): Promise<ClientBusinessesResponse> => {
         const response = await api.get(`/hmrc/clients/${clientId}/businesses`, {
-            params: { clientIdType },
+            params: { clientIdType, knownFact },
         });
         return response.data.data;
     },

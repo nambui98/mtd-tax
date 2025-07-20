@@ -121,8 +121,9 @@ export default function MainContent({}: Props) {
 
                     const relationship =
                         await clientsService.checkAgencyRelationship(
-                            client.utr,
+                            client.nino,
                             session?.user.agentReferenceNumber as string,
+                            form.getValues('postcode'),
                         );
                     debugger;
                     setRelationshipData(relationship);

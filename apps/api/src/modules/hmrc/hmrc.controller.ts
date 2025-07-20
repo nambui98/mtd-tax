@@ -233,19 +233,12 @@ export class HmrcController {
     @ApiResponse({ status: 400, description: 'Invalid UTR format' })
     @ApiResponse({ status: 401, description: 'Unauthorized' })
     async getClientAgencyRelationshipByUtr(
-        @Param('utr') utr: string,
+        @Param('nino') nino: string,
         @Query('arn') arn?: string,
         @Query('service') service?: string,
         @Query('knownFact') knownFact?: string,
         @Req() req?: any,
     ) {
-        // Validate UTR format (should be 10 digits)
-        if (!/^\d{10}$/.test(utr)) {
-            throw new BadRequestException(
-                'Invalid UTR format. UTR must be exactly 10 digits.',
-            );
-        }
-
         // If no ARN provided, try to get it from the authenticated user
         if (!arn && req?.user?.agentReferenceNumber) {
             arn = req.user.agentReferenceNumber;
@@ -261,13 +254,13 @@ export class HmrcController {
         const services = service ? service.split(',') : ['MTD-IT'];
 
         const relationship =
-            await this.hmrcService.getClientAgencyRelationshipByUtr(
-                req?.user?.userId || 'anonymous',
+            await this.hmrcService.getClientAgencyRelationshipByUtr({
+                agencyId: req?.user?.userId || 'anonymous',
                 arn,
-                utr,
-                services,
+                nino,
+                service: services,
                 knownFact,
-            );
+            });
 
         return relationship;
     }
@@ -311,17 +304,14 @@ export class HmrcController {
     @ApiResponse({ status: 401, description: 'Unauthorized' })
     @ApiResponse({ status: 404, description: 'Client not found' })
     async checkAgencyRelationship(
-        @Body() body: { utr: string; agencyId: string },
+        @Body()
+        body: { arn?: string; nino: string; knownFact?: string },
         @Req() req: any,
     ) {
-        const { utr, agencyId } = body;
-
-        // Validate UTR format (should be 10 digits)
-        if (!/^\d{10}$/.test(utr)) {
-            throw new BadRequestException(
-                'Invalid UTR format. UTR must be exactly 10 digits.',
-            );
-        }
+        const { arn, nino, knownFact } = body;
+        console.log(
+            '====================================checkAgencyRelationship',
+        );
 
         // Validate agency ID format (should start with ARN)
         // if (!/^ARN\d+$/.test(agencyId)) {
@@ -332,9 +322,12 @@ export class HmrcController {
 
         try {
             const relationship = await this.hmrcService.checkAgencyRelationship(
-                req.user.userId,
-                agencyId,
-                utr,
+                {
+                    agencyId: req.user.userId,
+                    arn,
+                    nino,
+                    knownFact: knownFact ?? '',
+                },
             );
 
             return relationship;
@@ -534,6 +527,7 @@ export class HmrcController {
         @Request() req: { user: { userId: string } },
         @Param('clientId') clientId: string,
         @Query('clientIdType') clientIdType: 'ni' | 'utr' = 'utr',
+        @Query('knownFact') knownFact: string,
     ) {
         console.log('====================================');
         console.log(req.user);
@@ -544,6 +538,7 @@ export class HmrcController {
             req.user.userId,
             clientId,
             clientIdType,
+            knownFact,
         );
     }
 
