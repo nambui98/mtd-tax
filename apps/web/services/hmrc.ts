@@ -230,7 +230,7 @@ export const hmrcService = {
         businessId: string,
         nino: string,
         typeOfBusiness: string,
-        taxYear: string = '2023-24',
+        taxYear: string = '2024-25',
     ): Promise<{
         businessDetails: Business | null;
         incomeSummary: {
@@ -282,5 +282,24 @@ export const hmrcService = {
             `/hmrc/clients/${clientId}/businesses/${businessId}/comprehensive?nino=${nino}&taxYear=${taxYear}&typeOfBusiness=${typeOfBusiness}`,
         );
         return response.data.data;
+    },
+
+    getHmrcCategories: async (): Promise<{
+        businessCategories: Array<{
+            code: string;
+            name: string;
+            description: string;
+            type: 'income' | 'expense' | 'both';
+        }>;
+        transactionCategories: Array<{
+            code: string;
+            name: string;
+            description: string;
+            parentCategory?: string;
+            isStandard: boolean;
+        }>;
+    }> => {
+        const response = await api.get('/hmrc/categories');
+        return response.data;
     },
 };

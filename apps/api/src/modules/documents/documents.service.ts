@@ -1,0 +1,643 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+import {
+    Injectable,
+    BadRequestException,
+    NotFoundException,
+} from '@nestjs/common';
+import { Inject } from '@nestjs/common';
+import { DATABASE_CONNECTION } from '../../database/database.module';
+import { Database } from '@workspace/database';
+import { eq, and, desc, asc, like, sql } from 'drizzle-orm';
+import {
+    documentsTable,
+    documentTransactionsTable,
+    documentFoldersTable,
+    documentFolderAssignmentsTable,
+    hmrcSubmissionsTable,
+    hmrcTransactionsTable,
+    InsertDocumentTransaction,
+} from '@workspace/database/dist/schema';
+import { HmrcService } from '../hmrc/hmrc.service';
+import { randomUUID } from 'crypto';
+import { createWriteStream, mkdirSync } from 'fs';
+import { extname } from 'path';
+
+// Type for uploaded file
+type UploadedFile = {
+    fieldname: string;
+    originalname: string;
+    encoding: string;
+    mimetype: string;
+    size: number;
+    buffer: Buffer;
+};
+
+export interface UploadDocumentDto {
+    userId: string; // This will be a UUID string
+    clientId: string; // This will be a UUID string
+    businessId?: string;
+    file: UploadedFile;
+    documentType: string;
+    folderId?: string;
+}
+
+export interface CreateTransactionDto {
+    documentId: string;
+    userId: string; // This will be a UUID string
+    clientId: string; // This will be a UUID string
+    businessId?: string;
+    transactionDate: string;
+    description: string;
+    category: string;
+    amount: number;
+    currency?: string;
+    isAIGenerated?: boolean;
+    aiConfidence?: number;
+    notes?: string;
+}
+
+export interface UpdateTransactionDto {
+    transactionDate?: string;
+    description?: string;
+    category?: string;
+    amount?: number;
+    currency?: string;
+    status?: string;
+    notes?: string;
+}
+
+export interface DocumentFilters {
+    userId: string; // This will be a UUID string
+    clientId?: string; // This will be a UUID string
+    businessId?: string;
+    documentType?: string;
+    status?: string;
+    processingStatus?: string;
+    folderId?: string;
+    search?: string;
+    dateFrom?: string;
+    dateTo?: string;
+}
+
+@Injectable()
+export class DocumentsService {
+    constructor(
+        @Inject(DATABASE_CONNECTION) private readonly db: Database,
+        private readonly hmrcService: HmrcService,
+    ) {}
+
+    async uploadDocument(dto: UploadDocumentDto): Promise<any> {
+        const { userId, clientId, businessId, file, documentType, folderId } =
+            dto;
+
+        // Generate unique filename
+        const fileId = randomUUID();
+        const fileExtension = extname(file.originalname);
+        const fileName = `${fileId}${fileExtension}`;
+
+        // Create upload directory if it doesn't exist
+        const uploadDir = `uploads/documents/${userId}/${clientId}`;
+        mkdirSync(uploadDir, { recursive: true });
+
+        const filePath = `${uploadDir}/${fileName}`;
+
+        // Save file to disk
+        const writeStream = createWriteStream(filePath);
+        writeStream.write(file.buffer);
+        writeStream.end();
+
+        // Create document record
+        const [document] = await this.db
+            .insert(documentsTable)
+            .values({
+                userId,
+                clientId,
+                businessId,
+                fileName,
+                originalFileName: file.originalname,
+                fileSize: file.size,
+                fileType: fileExtension.substring(1),
+                mimeType: file.mimetype,
+                filePath,
+                documentType,
+                status: 'uploaded',
+                processingStatus: 'pending',
+                uploadedAt: new Date(),
+            })
+            .returning();
+
+        // Assign to folder if specified
+        if (folderId) {
+            await this.assignDocumentToFolder(fileId, folderId);
+        }
+
+        // Start AI processing (simulated)
+        this.processDocumentWithAI(fileId);
+
+        return document;
+    }
+
+    processDocumentWithAI(documentId: string): void {
+        console.log(documentId);
+
+        // Simulate AI processing
+        // setTimeout(async () => {
+        //     try {
+        //         // Update processing status
+        //         await this.db
+        //             .update(documentsTable)
+        //             .set({
+        //                 processingStatus: 'processing',
+        //                 updatedAt: new Date(),
+        //             })
+        //             .where(eq(documentsTable.id, documentId));
+        //         // Simulate extracted transactions
+        //         const mockTransactions = [
+        //             {
+        //                 transactionDate: new Date().toISOString().split('T')[0],
+        //                 description: 'AI Extracted Transaction 1',
+        //                 category: 'SALES_INCOME',
+        //                 amount: 1000.0,
+        //                 isAIGenerated: true,
+        //                 aiConfidence: 0.95,
+        //             },
+        //             {
+        //                 transactionDate: new Date().toISOString().split('T')[0],
+        //                 description: 'AI Extracted Transaction 2',
+        //                 category: 'OFFICE_EXPENSES',
+        //                 amount: -250.0,
+        //                 isAIGenerated: true,
+        //                 aiConfidence: 0.88,
+        //             },
+        //         ];
+        //         // Create transactions
+        //         for (const transaction of mockTransactions) {
+        //             await this.createTransaction({
+        //                 documentId,
+        //                 userId: 'system',
+        //                 clientId: 'system',
+        //                 transactionDate: transaction.transactionDate,
+        //                 description: transaction.description,
+        //                 category: transaction.category,
+        //                 amount: transaction.amount,
+        //                 isAIGenerated: transaction.isAIGenerated,
+        //                 aiConfidence: transaction.aiConfidence,
+        //             });
+        //         }
+        //         // Update document status
+        //         await this.db
+        //             .update(documentsTable)
+        //             .set({
+        //                 processingStatus: 'completed',
+        //                 aiExtractedTransactions: mockTransactions.length,
+        //                 aiAccuracy: 0.92,
+        //                 processedAt: new Date(),
+        //                 updatedAt: new Date(),
+        //             })
+        //             .where(eq(documentsTable.id, documentId));
+        //     } catch (error) {
+        //         console.error('AI processing error:', error);
+        //         await this.db
+        //             .update(documentsTable)
+        //             .set({
+        //                 processingStatus: 'error',
+        //                 updatedAt: new Date(),
+        //             })
+        //             .where(eq(documentsTable.id, documentId));
+        //     }
+        // }, 3000); // Simulate 3-second processing
+    }
+
+    createTransaction(dto: InsertDocumentTransaction): any {
+        console.log(dto);
+
+        // const [transaction] = await this.db
+        //     .insert(documentTransactionsTable)
+        //     .values({
+        //         documentId: dto.documentId as any as string,
+        //         userId: dto.userId as string,
+        //         clientId: dto.clientId as string,
+        //         businessId: dto.businessId as string,
+        //         transactionDate: new Date(dto.transactionDate),
+        //         description: dto.description,
+        //         category: dto.category,
+        //         amount: dto.amount,
+        //         currency: dto.currency || 'GBP',
+        //         status: 'pending',
+        //         isAIGenerated: dto.isAIGenerated || false,
+        //         aiConfidence: dto.aiConfidence || 0.0,
+        //         notes: dto.notes,
+        //     })
+        //     .returning();
+        // return transaction;
+        return null;
+    }
+
+    async updateTransaction(
+        transactionId: string,
+        dto: UpdateTransactionDto,
+    ): Promise<any> {
+        const updateData: any = {
+            updatedAt: new Date(),
+        };
+
+        if (dto.transactionDate)
+            updateData.transactionDate = new Date(dto.transactionDate);
+        if (dto.description) updateData.description = dto.description;
+        if (dto.category) updateData.category = dto.category;
+        if (dto.amount !== undefined) updateData.amount = dto.amount;
+        if (dto.currency) updateData.currency = dto.currency;
+        if (dto.status) updateData.status = dto.status;
+        if (dto.notes) updateData.notes = dto.notes;
+
+        const [transaction] = await this.db
+            .update(documentTransactionsTable)
+            .set(updateData)
+            .where(eq(documentTransactionsTable.id, transactionId))
+            .returning();
+
+        if (!transaction) {
+            throw new NotFoundException('Transaction not found');
+        }
+
+        return transaction;
+    }
+
+    async deleteTransaction(transactionId: string): Promise<void> {
+        const result = await this.db
+            .delete(documentTransactionsTable)
+            .where(eq(documentTransactionsTable.id, transactionId));
+
+        if (!result) {
+            throw new NotFoundException('Transaction not found');
+        }
+    }
+
+    async getDocuments(filters: DocumentFilters): Promise<any[]> {
+        const conditions = [eq(documentsTable.userId, filters.userId)];
+
+        if (filters.clientId) {
+            conditions.push(eq(documentsTable.clientId, filters.clientId));
+        }
+        if (filters.businessId) {
+            conditions.push(eq(documentsTable.businessId, filters.businessId));
+        }
+        if (filters.documentType) {
+            conditions.push(
+                eq(documentsTable.documentType, filters.documentType),
+            );
+        }
+        if (filters.status) {
+            conditions.push(eq(documentsTable.status, filters.status));
+        }
+        if (filters.processingStatus) {
+            conditions.push(
+                eq(documentsTable.processingStatus, filters.processingStatus),
+            );
+        }
+        if (filters.search) {
+            conditions.push(
+                like(documentsTable.originalFileName, `%${filters.search}%`),
+            );
+        }
+        if (filters.dateFrom) {
+            conditions.push(
+                sql`${documentsTable.uploadedAt} >= ${filters.dateFrom}`,
+            );
+        }
+        if (filters.dateTo) {
+            conditions.push(
+                sql`${documentsTable.uploadedAt} <= ${filters.dateTo}`,
+            );
+        }
+
+        const query = this.db
+            .select({
+                id: documentsTable.id,
+                userId: documentsTable.userId,
+                clientId: documentsTable.clientId,
+                businessId: documentsTable.businessId,
+                fileName: documentsTable.fileName,
+                originalFileName: documentsTable.originalFileName,
+                fileSize: documentsTable.fileSize,
+                fileType: documentsTable.fileType,
+                mimeType: documentsTable.mimeType,
+                documentType: documentsTable.documentType,
+                status: documentsTable.status,
+                processingStatus: documentsTable.processingStatus,
+                aiExtractedTransactions: documentsTable.aiExtractedTransactions,
+                aiAccuracy: documentsTable.aiAccuracy,
+                uploadedAt: documentsTable.uploadedAt,
+                processedAt: documentsTable.processedAt,
+                createdAt: documentsTable.createdAt,
+                updatedAt: documentsTable.updatedAt,
+            })
+            .from(documentsTable)
+            .where(and(...conditions))
+            .orderBy(desc(documentsTable.uploadedAt));
+
+        return query;
+    }
+
+    async getDocumentById(documentId: string, userId: string): Promise<any> {
+        const [document] = await this.db
+            .select()
+            .from(documentsTable)
+            .where(
+                and(
+                    eq(documentsTable.id, documentId),
+                    eq(documentsTable.userId, userId),
+                ),
+            );
+
+        if (!document) {
+            throw new NotFoundException('Document not found');
+        }
+
+        return document;
+    }
+
+    async getDocumentTransactions(
+        documentId: string,
+        userId: string,
+    ): Promise<any[]> {
+        await this.getDocumentById(documentId, userId);
+
+        return this.db
+            .select()
+            .from(documentTransactionsTable)
+            .where(
+                and(
+                    eq(documentTransactionsTable.documentId, documentId),
+                    eq(documentTransactionsTable.userId, userId),
+                ),
+            )
+            .orderBy(asc(documentTransactionsTable.transactionDate));
+    }
+
+    async getFolders(userId: string, clientId?: string): Promise<any[]> {
+        const conditions = [eq(documentFoldersTable.userId, userId)];
+
+        if (clientId) {
+            conditions.push(eq(documentFoldersTable.clientId, clientId));
+        }
+
+        return this.db
+            .select()
+            .from(documentFoldersTable)
+            .where(and(...conditions))
+            .orderBy(asc(documentFoldersTable.name));
+    }
+
+    async createFolder(
+        userId: string,
+        clientId: string,
+        data: {
+            name: string;
+            description?: string;
+            color?: string;
+            icon?: string;
+            parentFolderId?: string;
+        },
+    ): Promise<any> {
+        const [folder] = await this.db
+            .insert(documentFoldersTable)
+            .values({
+                id: randomUUID(),
+                userId,
+                clientId,
+                name: data.name,
+                description: data.description,
+                color: data.color || '#2563eb',
+                icon: data.icon || 'folder',
+                parentFolderId: data.parentFolderId,
+            })
+            .returning();
+
+        return folder;
+    }
+
+    async assignDocumentToFolder(
+        documentId: string,
+        folderId: string,
+    ): Promise<void> {
+        await this.db
+            .insert(documentFolderAssignmentsTable)
+            .values({
+                id: randomUUID(),
+                documentId,
+                folderId,
+            })
+            .onConflictDoNothing();
+    }
+
+    async removeDocumentFromFolder(
+        documentId: string,
+        folderId: string,
+    ): Promise<void> {
+        await this.db
+            .delete(documentFolderAssignmentsTable)
+            .where(
+                and(
+                    eq(documentFolderAssignmentsTable.documentId, documentId),
+                    eq(documentFolderAssignmentsTable.folderId, folderId),
+                ),
+            );
+    }
+
+    async submitToHmrc(
+        documentId: string,
+        userId: string,
+        data: {
+            businessId: string;
+            taxYear: string;
+            periodKey?: string;
+        },
+    ): Promise<any> {
+        const document = await this.getDocumentById(documentId, userId);
+        const transactions = await this.getDocumentTransactions(
+            documentId,
+            userId,
+        );
+
+        if (!transactions.length) {
+            throw new BadRequestException('No transactions to submit');
+        }
+
+        // Create HMRC submission record
+        const [submission] = await this.db
+            .insert(hmrcSubmissionsTable)
+            .values({
+                id: randomUUID(),
+                userId,
+                clientId: document.clientId,
+                businessId: data.businessId,
+                documentId,
+                submissionType: 'document_transactions',
+                taxYear: data.taxYear,
+                periodKey: data.periodKey,
+                status: 'draft',
+            })
+            .returning();
+
+        // Submit transactions to HMRC
+        try {
+            // const accessToken = await this.hmrcService.getAccessToken(userId);
+            // const arn = await this.hmrcService.getArn(userId);
+
+            // Submit each transaction to HMRC
+            for (const transaction of transactions) {
+                const hmrcTransactionId = await this
+                    .submitTransactionToHmrc
+                    // transaction,
+                    // accessToken,
+                    // arn,
+                    // data.businessId,
+                    ();
+
+                // Create HMRC transaction record
+                await this.db.insert(hmrcTransactionsTable).values({
+                    id: randomUUID(),
+                    userId,
+                    clientId: document.clientId,
+                    businessId: data.businessId,
+                    documentTransactionId: transaction.id,
+                    hmrcTransactionId,
+                    transactionType:
+                        transaction.amount > 0 ? 'income' : 'expense',
+                    category: transaction.category,
+                    amount: transaction.amount,
+                    currency: transaction.currency,
+                    transactionDate: transaction.transactionDate,
+                    description: transaction.description,
+                    status: 'submitted',
+                    submittedAt: new Date(),
+                });
+            }
+
+            // Update submission status
+            await this.db
+                .update(hmrcSubmissionsTable)
+                .set({
+                    status: 'submitted',
+                    submittedAt: new Date(),
+                    updatedAt: new Date(),
+                })
+                .where(eq(hmrcSubmissionsTable.id, submission.id));
+
+            // Update document status
+            await this.db
+                .update(documentsTable)
+                .set({
+                    status: 'submitted_to_hmrc',
+                    submittedToHmrcAt: new Date(),
+                    updatedAt: new Date(),
+                })
+                .where(eq(documentsTable.id, documentId));
+
+            return submission;
+        } catch (error) {
+            // Update submission status to failed
+            await this.db
+                .update(hmrcSubmissionsTable)
+                .set({
+                    status: 'failed',
+                    hmrcResponse: { error: error.message },
+                    updatedAt: new Date(),
+                })
+                .where(eq(hmrcSubmissionsTable.id, submission.id));
+
+            throw new BadRequestException(
+                `Failed to submit to HMRC: ${error.message}`,
+            );
+        }
+    }
+
+    private submitTransactionToHmrc() // transaction: any,
+    // accessToken: string,
+    // arn: string,
+    // businessId: string,
+    : any {
+        // This would integrate with actual HMRC API
+        // For now, return a mock transaction ID
+        // return `HMRC_TXN_${randomUUID()}`;
+        return null;
+    }
+
+    async getHmrcSubmissions(
+        userId: string,
+        clientId?: string,
+    ): Promise<any[]> {
+        const conditions = [eq(hmrcSubmissionsTable.userId, userId)];
+
+        if (clientId) {
+            conditions.push(eq(hmrcSubmissionsTable.clientId, clientId));
+        }
+
+        return this.db
+            .select()
+            .from(hmrcSubmissionsTable)
+            .where(and(...conditions))
+            .orderBy(desc(hmrcSubmissionsTable.createdAt));
+    }
+
+    async getDocumentStats(userId: string, clientId?: string): Promise<any> {
+        const conditions = [eq(documentsTable.userId, userId)];
+
+        if (clientId) {
+            conditions.push(eq(documentsTable.clientId, clientId));
+        }
+
+        const documents = await this.db
+            .select({
+                status: documentsTable.status,
+                processingStatus: documentsTable.processingStatus,
+                documentType: documentsTable.documentType,
+            })
+            .from(documentsTable)
+            .where(and(...conditions));
+
+        const stats = {
+            total: documents.length,
+            byStatus: {} as Record<string, number>,
+            byProcessingStatus: {} as Record<string, number>,
+            byDocumentType: {} as Record<string, number>,
+            totalTransactions: 0,
+            totalAmount: 0,
+        };
+
+        documents.forEach((doc) => {
+            stats.byStatus[doc.status] = (stats.byStatus[doc.status] || 0) + 1;
+            stats.byProcessingStatus[doc.processingStatus] =
+                (stats.byProcessingStatus[doc.processingStatus] || 0) + 1;
+            stats.byDocumentType[doc.documentType] =
+                (stats.byDocumentType[doc.documentType] || 0) + 1;
+        });
+
+        // Get transaction stats
+        const transactionConditions = [
+            eq(documentTransactionsTable.userId, userId),
+        ];
+        if (clientId) {
+            transactionConditions.push(
+                eq(documentTransactionsTable.clientId, clientId),
+            );
+        }
+
+        const transactions = await this.db
+            .select({
+                amount: documentTransactionsTable.amount,
+            })
+            .from(documentTransactionsTable)
+            .where(and(...transactionConditions));
+
+        stats.totalTransactions = transactions.length;
+        stats.totalAmount = transactions.reduce(
+            (sum, txn) => sum + Number(txn.amount),
+            0,
+        );
+
+        return stats;
+    }
+}

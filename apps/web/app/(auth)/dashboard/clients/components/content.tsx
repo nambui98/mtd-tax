@@ -262,7 +262,7 @@ export default function ClientsContent({}: Props) {
                         ) : clients && clients.length > 0 ? (
                             clients?.map((client) => (
                                 <tr
-                                    className="hover:bg-gray-50"
+                                    className="cursor-pointer hover:bg-gray-50"
                                     key={client.id}
                                     onClick={() => {
                                         router.push(

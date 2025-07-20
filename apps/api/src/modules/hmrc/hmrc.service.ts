@@ -1207,4 +1207,239 @@ export class HmrcService {
             );
         }
     }
+
+    async getHmrcCategories(userId: string): Promise<{
+        businessCategories: Array<{
+            code: string;
+            name: string;
+            description: string;
+            type: 'income' | 'expense' | 'both';
+        }>;
+        transactionCategories: Array<{
+            code: string;
+            name: string;
+            description: string;
+            parentCategory?: string;
+            isStandard: boolean;
+        }>;
+    }> {
+        try {
+            const accessToken = await this.getAccessToken(userId);
+            const arn = await this.getArn(userId);
+
+            // Get business categories from HMRC API
+            const businessCategoriesResponse = await axios.get(
+                `${this.apiUrl}/agents/${arn}/business-categories`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        Accept: 'application/vnd.hmrc.1.0+json',
+                    },
+                },
+            );
+
+            // Get transaction categories from HMRC API
+            const transactionCategoriesResponse = await axios.get(
+                `${this.apiUrl}/agents/${arn}/transaction-categories`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        Accept: 'application/vnd.hmrc.1.0+json',
+                    },
+                },
+            );
+
+            return {
+                businessCategories:
+                    businessCategoriesResponse.data.businessCategories || [],
+                transactionCategories:
+                    transactionCategoriesResponse.data.transactionCategories ||
+                    [],
+            };
+        } catch (error) {
+            // If HMRC API is not available, return standard UK tax categories
+            return {
+                businessCategories: [
+                    {
+                        code: 'INCOME',
+                        name: 'Income',
+                        description: 'Business income and revenue',
+                        type: 'income' as const,
+                    },
+                    {
+                        code: 'COST_OF_SALES',
+                        name: 'Cost of Sales',
+                        description: 'Direct costs of goods sold',
+                        type: 'expense' as const,
+                    },
+                    {
+                        code: 'GROSS_PROFIT',
+                        name: 'Gross Profit',
+                        description: 'Gross profit calculation',
+                        type: 'both' as const,
+                    },
+                    {
+                        code: 'EXPENSES',
+                        name: 'Business Expenses',
+                        description: 'General business expenses',
+                        type: 'expense' as const,
+                    },
+                    {
+                        code: 'NET_PROFIT',
+                        name: 'Net Profit',
+                        description: 'Net profit calculation',
+                        type: 'both' as const,
+                    },
+                ],
+                transactionCategories: [
+                    // Income Categories
+                    {
+                        code: 'SALES_INCOME',
+                        name: 'Sales Income',
+                        description: 'Revenue from sales of goods or services',
+                        parentCategory: 'INCOME',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'CONSULTING_INCOME',
+                        name: 'Consulting Income',
+                        description: 'Income from consulting services',
+                        parentCategory: 'INCOME',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'PROPERTY_INCOME',
+                        name: 'Property Income',
+                        description: 'Income from property rental',
+                        parentCategory: 'INCOME',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'INTEREST_INCOME',
+                        name: 'Interest Income',
+                        description: 'Interest earned on business accounts',
+                        parentCategory: 'INCOME',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'OTHER_INCOME',
+                        name: 'Other Income',
+                        description: 'Other business income',
+                        parentCategory: 'INCOME',
+                        isStandard: true,
+                    },
+
+                    // Expense Categories
+                    {
+                        code: 'OFFICE_EXPENSES',
+                        name: 'Office Expenses',
+                        description: 'General office supplies and expenses',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'SOFTWARE_SUBSCRIPTIONS',
+                        name: 'Software & Subscriptions',
+                        description:
+                            'Software licenses and online subscriptions',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'TRAVEL_TRANSPORT',
+                        name: 'Travel & Transport',
+                        description: 'Business travel and transportation costs',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'UTILITIES',
+                        name: 'Utilities',
+                        description: 'Gas, electricity, water, and internet',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'PROFESSIONAL_FEES',
+                        name: 'Professional Fees',
+                        description:
+                            'Legal, accounting, and professional services',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'MARKETING_ADVERTISING',
+                        name: 'Marketing & Advertising',
+                        description: 'Marketing and advertising expenses',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'INSURANCE',
+                        name: 'Insurance',
+                        description: 'Business insurance premiums',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'MAINTENANCE_REPAIRS',
+                        name: 'Maintenance & Repairs',
+                        description: 'Equipment and property maintenance',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'TRAINING_DEVELOPMENT',
+                        name: 'Training & Development',
+                        description: 'Employee training and development costs',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'BANK_CHARGES',
+                        name: 'Bank Charges',
+                        description: 'Bank fees and charges',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'DEPRECIATION',
+                        name: 'Depreciation',
+                        description: 'Depreciation of business assets',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'RENT',
+                        name: 'Rent',
+                        description: 'Office and equipment rental costs',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'SALARIES_WAGES',
+                        name: 'Salaries & Wages',
+                        description: 'Employee salaries and wages',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'PENSION_CONTRIBUTIONS',
+                        name: 'Pension Contributions',
+                        description: 'Employer pension contributions',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                    {
+                        code: 'NATIONAL_INSURANCE',
+                        name: 'National Insurance',
+                        description:
+                            'Employer National Insurance contributions',
+                        parentCategory: 'EXPENSES',
+                        isStandard: true,
+                    },
+                ],
+            };
+        }
+    }
 }
