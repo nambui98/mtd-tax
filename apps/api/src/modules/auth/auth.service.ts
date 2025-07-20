@@ -141,9 +141,6 @@ export class AuthService {
             password,
             user.passwordHash,
         );
-        console.log('====================================');
-        console.log(isPasswordValid);
-        console.log('====================================');
         if (!isPasswordValid) {
             throw new UnauthorizedException('Invalid credentials');
         }
@@ -632,7 +629,6 @@ export class AuthService {
             .from(userRolesTable)
             .innerJoin(rolesTable, eq(userRolesTable.roleId, rolesTable.id))
             .where(eq(userRolesTable.userId, user.id));
-        console.log('vaiiiiiiiiiiiiiiiiiiiiiiii');
 
         return {
             id: user.id,

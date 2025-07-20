@@ -39,7 +39,6 @@ export class UsersController {
     @Public()
     @Get()
     findAll() {
-        console.log('findAll');
         return this.usersService.findAll();
     }
 
@@ -56,7 +55,6 @@ export class UsersController {
         },
     })
     getStaffUsers() {
-        console.log('getStaffUsers');
         return this.usersService.getStaffUsers();
     }
 

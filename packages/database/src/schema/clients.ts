@@ -44,6 +44,7 @@ export type ClientCategory = (typeof clientCategoryEnum.enumValues)[number];
 
 export const clientsTable = pgTable('clients', {
     id: uuid('id').primaryKey().defaultRandom(),
+    invitationId: varchar('invitation_id', { length: 255 }),
     clientType: clientTypeEnum('client_type').notNull(),
     mtdStatus: boolean('mtd_status').notNull().default(false),
     title: varchar('title', { length: 100 }).notNull(),

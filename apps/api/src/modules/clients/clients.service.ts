@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Inject, Injectable } from '@nestjs/common';
 import { UpdateClientDto } from './dto/update-client.dto';
 import {
@@ -9,6 +10,7 @@ import {
 import { DATABASE_CONNECTION } from '../../database/database.module';
 import { Database } from '@workspace/database';
 import { desc, eq, and, ilike, or } from 'drizzle-orm';
+import { NotFoundException } from '@nestjs/common';
 
 @Injectable()
 export class ClientsService {
@@ -93,6 +95,7 @@ export class ClientsService {
                 clientType: clientsTable.clientType,
                 deadline: clientsTable.deadline,
                 totalRevenue: clientsTable.totalRevenue,
+                invitationId: clientsTable.invitationId,
                 assignee: {
                     id: usersTable.id,
                     firstName: usersTable.firstName,
@@ -113,41 +116,80 @@ export class ClientsService {
     }
 
     async findClientAgencyRelationshipByUtr(utr: string) {
-        const result = await this.db
+        const client = await this.db
+            .select()
+            .from(clientsTable)
+            .where(eq(clientsTable.utr, utr))
+            .limit(1);
+
+        if (client.length === 0) {
+            throw new NotFoundException('Client not found');
+        }
+
+        return client[0];
+    }
+
+    async findClientById(id: string) {
+        const client = await this.db
             .select({
-                client: {
-                    id: clientsTable.id,
-                    firstName: clientsTable.firstName,
-                    lastName: clientsTable.lastName,
-                    email: clientsTable.email,
-                    utr: clientsTable.utr,
-                    clientType: clientsTable.clientType,
-                    mtdStatus: clientsTable.mtdStatus,
-                    status: clientsTable.status,
-                    hmrcConnected: clientsTable.hmrcConnected,
-                    hmrcAuthorization: clientsTable.hmrcAuthorization,
-                    createdAt: clientsTable.createdAt,
-                    updatedAt: clientsTable.updatedAt,
-                },
-                assignedStaff: {
+                id: clientsTable.id,
+                firstName: clientsTable.firstName,
+                lastName: clientsTable.lastName,
+                email: clientsTable.email,
+                phoneNumber: clientsTable.phoneNumber,
+                addressLine1: clientsTable.addressLine1,
+                addressLine2: clientsTable.addressLine2,
+                city: clientsTable.city,
+                county: clientsTable.county,
+                postcode: clientsTable.postcode,
+                utr: clientsTable.utr,
+                nino: clientsTable.nino,
+                clientType: clientsTable.clientType,
+                deadline: clientsTable.deadline,
+                totalRevenue: clientsTable.totalRevenue,
+                invitationId: clientsTable.invitationId,
+                assignee: {
                     id: usersTable.id,
                     firstName: usersTable.firstName,
                     lastName: usersTable.lastName,
                     email: usersTable.email,
-                    jobTitle: usersTable.jobTitle,
-                    practiceType: usersTable.practiceType,
-                    agentReferenceNumber: usersTable.agentReferenceNumber,
-                    utr: usersTable.utr,
                 },
-                createdBy: {
+            })
+            .from(clientsTable)
+            .leftJoin(usersTable, eq(clientsTable.assignedTo, usersTable.id))
+            .where(eq(clientsTable.id, id))
+            .limit(1);
+
+        if (client.length === 0) {
+            throw new NotFoundException('Client not found');
+        }
+
+        return client[0];
+    }
+
+    async findClientByUtr(utr: string) {
+        const client = await this.db
+            .select({
+                id: clientsTable.id,
+                firstName: clientsTable.firstName,
+                lastName: clientsTable.lastName,
+                email: clientsTable.email,
+                phoneNumber: clientsTable.phoneNumber,
+                addressLine1: clientsTable.addressLine1,
+                addressLine2: clientsTable.addressLine2,
+                city: clientsTable.city,
+                county: clientsTable.county,
+                postcode: clientsTable.postcode,
+                utr: clientsTable.utr,
+                clientType: clientsTable.clientType,
+                deadline: clientsTable.deadline,
+                totalRevenue: clientsTable.totalRevenue,
+                invitationId: clientsTable.invitationId,
+                assignee: {
                     id: usersTable.id,
                     firstName: usersTable.firstName,
                     lastName: usersTable.lastName,
                     email: usersTable.email,
-                    jobTitle: usersTable.jobTitle,
-                    practiceType: usersTable.practiceType,
-                    agentReferenceNumber: usersTable.agentReferenceNumber,
-                    utr: usersTable.utr,
                 },
             })
             .from(clientsTable)
@@ -155,53 +197,106 @@ export class ClientsService {
             .where(eq(clientsTable.utr, utr))
             .limit(1);
 
-        if (result.length === 0) {
-            return null;
+        if (client.length === 0) {
+            throw new NotFoundException('Client not found');
         }
 
-        const clientData = result[0];
+        return client[0];
+    }
 
-        // Get creator details using the createdBy field
-        let creatorDetails = null;
-        const createdByResult = await this.db
-            .select({
-                createdBy: clientsTable.createdBy,
-            })
-            .from(clientsTable)
-            .where(eq(clientsTable.utr, utr))
-            .limit(1);
-
-        if (createdByResult.length > 0 && createdByResult[0].createdBy) {
-            const creatorResult = await this.db
-                .select({
-                    id: usersTable.id,
-                    firstName: usersTable.firstName,
-                    lastName: usersTable.lastName,
-                    email: usersTable.email,
-                    jobTitle: usersTable.jobTitle,
-                    practiceType: usersTable.practiceType,
-                    agentReferenceNumber: usersTable.agentReferenceNumber,
-                    utr: usersTable.utr,
-                })
-                .from(usersTable)
-                .where(eq(usersTable.id, createdByResult[0].createdBy))
-                .limit(1);
-
-            if (creatorResult.length > 0) {
-                creatorDetails = creatorResult[0];
-            }
-        }
-
-        return {
-            client: clientData.client,
-            relationship: {
-                assignedStaff: clientData.assignedStaff,
-                createdBy: creatorDetails,
-                relationshipType: clientData.assignedStaff
-                    ? 'assigned'
-                    : 'created_only',
-                isActive: clientData.client.status !== 'critical_issues',
+    getClientTransactions(clientId: string) {
+        // Mock data for now - in a real app, you'd have a transactions table
+        return [
+            {
+                id: '1',
+                clientId,
+                description: 'Client XYZ - Website Development',
+                amount: 3500.0,
+                type: 'income' as const,
+                category: 'Sales / Services',
+                date: '2026-06-20',
+                createdAt: '2026-06-20T10:00:00Z',
             },
-        };
+            {
+                id: '2',
+                clientId,
+                description: 'Software Subscriptions',
+                amount: 250.0,
+                type: 'expense' as const,
+                category: 'Office Expenses',
+                date: '2026-06-15',
+                createdAt: '2026-06-15T10:00:00Z',
+            },
+            {
+                id: '3',
+                clientId,
+                description: 'Client ABC - Consulting Retainer',
+                amount: 2200.0,
+                type: 'income' as const,
+                category: 'Sales / Services',
+                date: '2026-06-10',
+                createdAt: '2026-06-10T10:00:00Z',
+            },
+            {
+                id: '4',
+                clientId,
+                description: 'Business Travel',
+                amount: 320.0,
+                type: 'expense' as const,
+                category: 'Travel & Transport',
+                date: '2026-06-08',
+                createdAt: '2026-06-08T10:00:00Z',
+            },
+        ];
+    }
+
+    getClientDocuments(clientId: string) {
+        // Mock data for now - in a real app, you'd have a documents table
+        return [
+            {
+                id: '1',
+                clientId,
+                name: 'April 2026 Bank Statement (Consulting)',
+                type: 'pdf',
+                size: 1024000,
+                uploadDate: '2026-05-15',
+                uploadedBy: 'Client Upload',
+                status: 'Processed',
+                url: 'https://example.com/document1.pdf',
+            },
+            {
+                id: '2',
+                clientId,
+                name: 'Client XYZ Invoice #2026-042',
+                type: 'pdf',
+                size: 512000,
+                uploadDate: '2026-05-12',
+                uploadedBy: 'Client Upload',
+                status: 'Processed',
+                url: 'https://example.com/document2.pdf',
+            },
+            {
+                id: '3',
+                clientId,
+                name: 'Client ABC Invoice #2026-043',
+                type: 'pdf',
+                size: 768000,
+                uploadDate: '2026-05-08',
+                uploadedBy: 'Client Upload',
+                status: 'Processed',
+                url: 'https://example.com/document3.pdf',
+            },
+            {
+                id: '4',
+                clientId,
+                name: 'April 2026 Expense Receipts (Bundle)',
+                type: 'zip',
+                size: 2048000,
+                uploadDate: '2026-05-05',
+                uploadedBy: 'Client Upload',
+                status: 'Processed',
+                url: 'https://example.com/document4.zip',
+            },
+        ];
     }
 }

@@ -103,7 +103,11 @@ export default function MainContent({}: Props) {
         form.reset(data);
     };
 
-    const { mutate: createClient, isPending } = useMutation({
+    const {
+        mutate: createClient,
+        isPending,
+        data: client,
+    } = useMutation({
         mutationFn: (client: InsertClient) => usersService.createClient(client),
         onSuccess: async (client) => {
             toast.success('Client created successfully');
@@ -156,11 +160,13 @@ export default function MainContent({}: Props) {
 
                 // You can optionally pass a known fact (like postcode) for additional verification
                 const knownFact = form.getValues('postcode'); // Use postcode as known fact
-
-                return await clientsService.requestAgencyRelationship(
-                    currentUtr,
+                const nino = form.getValues('nino'); // Use postcode as known fact
+                debugger;
+                return await clientsService.requestAgencyRelationship({
+                    nino,
                     knownFact,
-                );
+                    clientId: client?.id as string,
+                });
             },
             onSuccess: (result) => {
                 if (result.success) {

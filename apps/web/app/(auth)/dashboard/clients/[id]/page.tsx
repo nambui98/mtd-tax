@@ -1,7 +1,18 @@
+import MainPageWrapper from '@/components/layout/main-page-wrapper';
 import React from 'react';
+import ClientContent from './components/client-content';
 
-type Props = {};
+type Props = {
+    params: Promise<{
+        id: string;
+    }>;
+};
 
-export default function ClientPage({}: Props) {
-    return <div>ClientPage</div>;
+export default async function ClientPage({ params }: Props) {
+    const { id } = await params;
+    return (
+        <MainPageWrapper title="Client Details">
+            <ClientContent clientId={id} />
+        </MainPageWrapper>
+    );
 }

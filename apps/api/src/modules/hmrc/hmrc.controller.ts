@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import {
@@ -11,6 +12,7 @@ import {
     Param,
     BadRequestException,
     NotFoundException,
+    Request,
 } from '@nestjs/common';
 import { HmrcService } from './hmrc.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,6 +22,7 @@ import {
     ApiResponse,
     ApiBearerAuth,
     ApiParam,
+    ApiQuery,
 } from '@nestjs/swagger';
 import { VatReturnDto } from './dto/vat-return.dto';
 
@@ -242,7 +245,6 @@ export class HmrcController {
                 'Invalid UTR format. UTR must be exactly 10 digits.',
             );
         }
-        console.log(req.user);
 
         // If no ARN provided, try to get it from the authenticated user
         if (!arn && req?.user?.agentReferenceNumber) {
@@ -378,40 +380,32 @@ export class HmrcController {
     @ApiResponse({ status: 403, description: 'Agent not authorized' })
     @ApiResponse({ status: 409, description: 'Relationship already exists' })
     async requestAgencyRelationship(
-        @Body() body: { utr: string; agencyId: string; knownFact?: string },
+        @Body()
+        body: {
+            nino: string;
+            knownFact: string;
+            arn?: string;
+            clientId: string;
+        },
         @Req() req: any,
     ) {
-        const { utr, agencyId, knownFact } = body;
-        console.log(req.user);
-        // Validate UTR format (should be 10 digits)
-        if (!/^\d{10}$/.test(utr)) {
-            throw new BadRequestException(
-                'Invalid UTR format. UTR must be exactly 10 digits.',
-            );
-        }
+        const { nino, knownFact, arn, clientId } = body;
 
-        // Validate agency ID format (should start with ARN)
-        // if (!/^ARN\d+$/.test(agencyId)) {
-        //     throw new BadRequestException(
-        //         'Invalid agency ID format. Agency ID must start with ARN followed by numbers.',
-        //     );
-        // }
-        console.log(req.user);
-
-        const result = await this.hmrcService.requestAgencyRelationship(
-            req.user.userId,
-            agencyId,
-            utr,
+        const result = await this.hmrcService.requestAgencyRelationship({
+            agencyId: req.user.userId,
+            clientId,
+            arn,
+            nino,
             knownFact,
-        );
+        });
 
         return result;
     }
 
-    @Get('pending-invitations')
+    @Get('invitations')
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth()
-    @ApiOperation({ summary: 'Get pending relationship invitations' })
+    @ApiOperation({ summary: 'Get pending invitations' })
     @ApiResponse({
         status: 200,
         description: 'Pending invitations retrieved successfully',
@@ -423,21 +417,112 @@ export class HmrcController {
                     items: {
                         type: 'object',
                         properties: {
-                            invitationId: {
-                                type: 'string',
-                                example: 'inv-123456',
-                            },
-                            clientId: { type: 'string', example: '1234567890' },
-                            clientIdType: { type: 'string', example: 'utr' },
+                            invitationId: { type: 'string' },
+                            clientId: { type: 'string' },
+                            clientIdType: { type: 'string' },
                             service: {
                                 type: 'array',
                                 items: { type: 'string' },
-                                example: ['MTD-IT'],
                             },
-                            status: { type: 'string', example: 'pending' },
-                            createdDate: {
+                            status: {
                                 type: 'string',
-                                example: '2024-01-01T00:00:00Z',
+                                enum: ['Pending', 'Accepted', 'Rejected'],
+                            },
+                            createdDate: { type: 'string' },
+                        },
+                    },
+                },
+            },
+        },
+    })
+    async getPendingInvitations(
+        @Request() req: { user: { userId: string } },
+        @Query('arn') arn?: string,
+    ) {
+        return this.hmrcService.getPendingInvitations(req.user.userId, arn);
+    }
+
+    @Get('clients/:clientId/businesses')
+    @ApiOperation({ summary: 'Get all businesses for a client' })
+    @ApiParam({ name: 'clientId', description: 'Client ID (UTR or NI number)' })
+    @ApiQuery({
+        name: 'clientIdType',
+        description: 'Type of client ID',
+        enum: ['utr', 'ni'],
+        required: false,
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Client businesses retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                businesses: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            businessId: { type: 'string' },
+                            businessName: { type: 'string' },
+                            businessType: { type: 'string' },
+                            tradingName: { type: 'string' },
+                            address: {
+                                type: 'object',
+                                properties: {
+                                    line1: { type: 'string' },
+                                    line2: { type: 'string' },
+                                    line3: { type: 'string' },
+                                    line4: { type: 'string' },
+                                    postcode: { type: 'string' },
+                                    countryCode: { type: 'string' },
+                                },
+                            },
+                            accountingPeriod: {
+                                type: 'object',
+                                properties: {
+                                    startDate: { type: 'string' },
+                                    endDate: { type: 'string' },
+                                },
+                            },
+                            accountingType: { type: 'string' },
+                            commencementDate: { type: 'string' },
+                            cessationDate: { type: 'string' },
+                            businessDescription: { type: 'string' },
+                            emailAddress: { type: 'string' },
+                            websiteAddress: { type: 'string' },
+                            contactDetails: {
+                                type: 'object',
+                                properties: {
+                                    phoneNumber: { type: 'string' },
+                                    mobileNumber: { type: 'string' },
+                                    faxNumber: { type: 'string' },
+                                },
+                            },
+                            bankDetails: {
+                                type: 'object',
+                                properties: {
+                                    accountName: { type: 'string' },
+                                    accountNumber: { type: 'string' },
+                                    sortCode: { type: 'string' },
+                                },
+                            },
+                            industryClassifications: {
+                                type: 'object',
+                                properties: {
+                                    sicCode: { type: 'string' },
+                                    sicDescription: { type: 'string' },
+                                },
+                            },
+                            links: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        href: { type: 'string' },
+                                        rel: { type: 'string' },
+                                        method: { type: 'string' },
+                                    },
+                                },
                             },
                         },
                     },
@@ -445,24 +530,110 @@ export class HmrcController {
             },
         },
     })
-    @ApiResponse({ status: 401, description: 'Unauthorized' })
-    async getPendingInvitations(
-        @Query('agencyId') agencyId: string,
-        @Req() req: any,
+    async getClientBusinesses(
+        @Request() req: { user: { userId: string } },
+        @Param('clientId') clientId: string,
+        @Query('clientIdType') clientIdType: 'ni' | 'utr' = 'utr',
     ) {
-        // Validate agency ID format (should start with ARN)
-        // if (!/^ARN\d+$/.test(agencyId)) {
-        //     throw new BadRequestException(
-        //         'Invalid agency ID format. Agency ID must start with ARN followed by numbers.',
-        //     );
-        // }
-
-        const result = await this.hmrcService.getPendingInvitations(
+        console.log('====================================');
+        console.log(req.user);
+        console.log(clientId);
+        console.log(clientIdType);
+        console.log('====================================');
+        return this.hmrcService.getClientBusinesses(
             req.user.userId,
-            agencyId,
+            clientId,
+            clientIdType,
         );
+    }
 
-        return result;
+    @Get('clients/:clientId/businesses/:businessId')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get specific business details for a client' })
+    @ApiParam({ name: 'clientId', description: 'Client ID (UTR or NI number)' })
+    @ApiParam({ name: 'businessId', description: 'Business ID' })
+    @ApiResponse({
+        status: 200,
+        description: 'Business details retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                businessId: { type: 'string' },
+                businessName: { type: 'string' },
+                businessType: { type: 'string' },
+                tradingName: { type: 'string' },
+                address: {
+                    type: 'object',
+                    properties: {
+                        line1: { type: 'string' },
+                        line2: { type: 'string' },
+                        line3: { type: 'string' },
+                        line4: { type: 'string' },
+                        postcode: { type: 'string' },
+                        countryCode: { type: 'string' },
+                    },
+                },
+                accountingPeriod: {
+                    type: 'object',
+                    properties: {
+                        startDate: { type: 'string' },
+                        endDate: { type: 'string' },
+                    },
+                },
+                accountingType: { type: 'string' },
+                commencementDate: { type: 'string' },
+                cessationDate: { type: 'string' },
+                businessDescription: { type: 'string' },
+                emailAddress: { type: 'string' },
+                websiteAddress: { type: 'string' },
+                contactDetails: {
+                    type: 'object',
+                    properties: {
+                        phoneNumber: { type: 'string' },
+                        mobileNumber: { type: 'string' },
+                        faxNumber: { type: 'string' },
+                    },
+                },
+                bankDetails: {
+                    type: 'object',
+                    properties: {
+                        accountName: { type: 'string' },
+                        accountNumber: { type: 'string' },
+                        sortCode: { type: 'string' },
+                    },
+                },
+                industryClassifications: {
+                    type: 'object',
+                    properties: {
+                        sicCode: { type: 'string' },
+                        sicDescription: { type: 'string' },
+                    },
+                },
+                links: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            href: { type: 'string' },
+                            rel: { type: 'string' },
+                            method: { type: 'string' },
+                        },
+                    },
+                },
+            },
+        },
+    })
+    async getClientBusinessDetails(
+        @Request() req: { user: { userId: string } },
+        @Param('clientId') clientId: string,
+        @Param('businessId') businessId: string,
+    ) {
+        return this.hmrcService.getClientBusinessDetails(
+            req.user.userId,
+            clientId,
+            businessId,
+        );
     }
 
     private getUserArn(): Promise<{ agentReferenceNumber?: string } | null> {

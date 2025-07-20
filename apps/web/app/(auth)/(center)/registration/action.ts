@@ -11,8 +11,6 @@ export async function signup(data: {
     user: InsertUser & InsertHMRC;
     company: InsertCompany;
 }) {
-    console.log(data);
-    console.log(Env.NEXT_PUBLIC_BACKEND_API_URL);
     const response = await fetch(
         `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/signup`,
         {
@@ -32,7 +30,6 @@ export async function signup(data: {
 }
 
 export async function verifyEmail(data: { otp: string; email: string }) {
-    console.log(data);
     const response = await fetch(
         `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/verify-email`,
         {
@@ -55,7 +52,6 @@ export async function signInWithPassword(data: {
     email: string;
     password: string;
 }) {
-    console.log(data);
     const response = await fetch(
         `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/signin-with-password`,
         {

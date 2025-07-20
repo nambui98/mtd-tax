@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import {
     Injectable,
@@ -11,7 +15,11 @@ import { DATABASE_CONNECTION } from '../../database/database.module';
 import { Database } from '@workspace/database';
 import { eq } from 'drizzle-orm';
 import axios from 'axios';
-import { hmrcTokensTable, usersTable } from '@workspace/database/dist/schema';
+import {
+    clientsTable,
+    hmrcTokensTable,
+    usersTable,
+} from '@workspace/database/dist/schema';
 import { addSeconds } from 'date-fns';
 
 @Injectable()
@@ -54,7 +62,7 @@ export class HmrcService {
             response_type: 'code',
             client_id: this.clientId,
             redirect_uri: this.redirectUri,
-            scope: 'hello read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
+            scope: 'read:check-relationship write:cancel-invitations read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
             state,
         });
 
@@ -78,7 +86,7 @@ export class HmrcService {
                     client_secret: this.clientSecret,
                     redirect_uri: this.redirectUri,
                     code,
-                    scope: 'hello read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
+                    scope: 'read:check-relationship write:cancel-invitations read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
                 }),
                 {
                     headers: {
@@ -88,9 +96,6 @@ export class HmrcService {
             );
 
             const { access_token, refresh_token, expires_in } = response.data;
-            console.log('====================================1');
-            console.log(response.data);
-            console.log('====================================1');
             // Store tokens in database
             await this.db.insert(hmrcTokensTable).values({
                 userId,
@@ -130,7 +135,7 @@ export class HmrcService {
                     client_id: this.clientId,
                     client_secret: this.clientSecret,
                     refresh_token: currentToken.refreshToken,
-                    scope: 'hello read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
+                    scope: 'read:check-relationship write:cancel-invitations read:agent-authorisation write:agent-authorisation read:sent-invitations write:sent-invitations',
                 }),
                 {
                     headers: {
@@ -264,7 +269,6 @@ export class HmrcService {
                 },
             },
         );
-        console.log(response.data);
         return response.data;
     }
 
@@ -287,7 +291,6 @@ export class HmrcService {
                 },
             },
         );
-        console.log(response.data);
         return response.data;
     }
 
@@ -318,6 +321,9 @@ export class HmrcService {
                 clientId: utr,
                 ...(knownFact && { knownFact }),
             };
+            console.log('====================================1');
+            console.log(requestPayload);
+            console.log('====================================1');
 
             const response = await axios.post(
                 `${this.apiUrl}/agents/${arn}/relationships`,
@@ -330,7 +336,7 @@ export class HmrcService {
                     },
                 },
             );
-            console.log(response.data);
+            console.log('vaoooooooooooooooo day : ', response.data);
 
             // 204 means relationship is active
             return {
@@ -520,72 +526,66 @@ export class HmrcService {
         }
     }
 
-    async requestAgencyRelationship(
-        userId: string,
-        agencyId: string,
-        utr: string,
-        knownFact?: string,
-    ): Promise<{
+    async requestAgencyRelationship({
+        agencyId,
+        clientId,
+        arn,
+        nino,
+        knownFact,
+    }: {
+        agencyId: string;
+        clientId: string;
+        arn?: string;
+        nino: string;
+        knownFact: string;
+    }): Promise<{
         success: boolean;
         invitationId?: string;
         message: string;
         status: 'pending' | 'accepted' | 'rejected';
     }> {
         try {
-            // Validate inputs
-            if (!/^\d{10}$/.test(utr)) {
-                throw new BadRequestException(
-                    'Invalid UTR format. UTR must be exactly 10 digits.',
-                );
+            const accessToken = await this.getAccessToken(agencyId);
+            let arnParam = arn;
+            if (!arn) {
+                arnParam = await this.getArn(agencyId);
             }
-
-            // if (!/^ARN\d+$/.test(agencyId)) {
-            //     throw new BadRequestException(
-            //         'Invalid agency ID format. Agency ID must start with ARN followed by numbers.',
-            //     );
-            // }
-
-            const accessToken = await this.getAccessToken(userId);
-            const arn = await this.getArn(userId);
-            console.log(accessToken);
-
             // Test ARN exists first
-            try {
-                const testResponse = await axios.get(
-                    `${this.apiUrl}/agents/${arn}`,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${accessToken}`,
-                            Accept: 'application/vnd.hmrc.1.0+json',
-                        },
-                    },
-                );
-                console.log('✅ ARN test successful:', testResponse.data);
-            } catch (testError: any) {
-                if (testError.response?.status === 404) {
-                    throw new BadRequestException(
-                        `ARN ${arn} not found in HMRC. Please verify your Agent Reference Number.`,
-                    );
-                }
-                throw testError;
-            }
+            // try {
+            //     const testResponse = await axios.get(
+            //         `${this.apiUrl}/agents/${arn}`,
+            //         {
+            //             headers: {
+            //                 Authorization: `Bearer ${accessToken}`,
+            //                 Accept: 'application/vnd.hmrc.1.0+json',
+            //             },
+            //         },
+            //     );
+            // } catch (testError: any) {
+            //     if (testError.response?.status === 404) {
+            //         throw new BadRequestException(
+            //             `ARN ${arn} not found in HMRC. Please verify your Agent Reference Number.`,
+            //         );
+            //     }
+            //     throw testError;
+            // }
 
             // Prepare the invitation request payload
             const requestPayload = {
-                service: ['MTD-IT', 'MTD-VAT'],
-                clientType: 'individual',
-                clientIdType: 'utr',
-                clientId: utr,
-                ...(knownFact && { knownFact }),
+                service: ['MTD-IT'],
+                clientType: 'personal',
+                clientIdType: 'ni',
+                clientId: nino,
+                knownFact: knownFact,
             };
 
             console.log('📤 Making invitation request:', {
-                url: `${this.apiUrl}/agents/${arn}/invitations`,
+                url: `${this.apiUrl}/agents/${arnParam}/invitations`,
                 payload: requestPayload,
             });
 
             const response = await axios.post(
-                `${this.apiUrl}/agents/${arn}/invitations`,
+                `${this.apiUrl}/agents/${arnParam}/invitations`,
                 requestPayload,
                 {
                     headers: {
@@ -595,26 +595,31 @@ export class HmrcService {
                     },
                 },
             );
-            // console.log(response.data);
 
             // HMRC returns 201 for successful invitation creation
-            if (response.status === 201) {
+            if (response.status === 204) {
+                const invitationId = response.headers?.location
+                    ?.split('/')
+                    .pop();
+                await this.db
+                    .update(clientsTable)
+                    .set({
+                        invitationId,
+                    })
+                    .where(eq(clientsTable.id, clientId));
                 return {
                     success: true,
-                    invitationId: response.data?.invitationId,
+
+                    invitationId,
                     message:
                         'Relationship invitation sent successfully. The client will receive a notification to authorize the relationship.',
                     status: 'pending',
                 };
             }
-
-            return {
-                success: false,
-                message: 'Failed to send relationship invitation',
-                status: 'pending',
-            };
+            throw new BadRequestException(
+                'Failed to send relationship invitation',
+            );
         } catch (error: any) {
-            console.log(error.response.data);
             // Handle specific HMRC API errors
             if (error.response?.status === 400) {
                 const errorCode = error.response.data?.code;
@@ -674,7 +679,7 @@ export class HmrcService {
 
     async getPendingInvitations(
         userId: string,
-        agencyId: string,
+        arn?: string,
     ): Promise<{
         invitations: Array<{
             invitationId: string;
@@ -687,28 +692,243 @@ export class HmrcService {
     }> {
         try {
             const accessToken = await this.getAccessToken(userId);
+            const userArn = arn || (await this.getArn(userId));
 
             const response = await axios.get(
-                `${this.apiUrl}/agents/${agencyId}/invitations`,
+                `${this.apiUrl}/agents/${userArn}/invitations`,
                 {
                     headers: {
-                        Authorization: `Bearer ${accessToken}`,
                         Accept: 'application/vnd.hmrc.1.0+json',
+                        Authorization: `Bearer ${accessToken}`,
                     },
                 },
             );
 
             return {
-                invitations: response.data.invitations || [],
+                invitations: response.data.map((invitation: any) => ({
+                    ...invitation,
+                    invitationId: invitation._links.self.href.split('/').pop(),
+                })),
             };
-        } catch (error: any) {
-            if (error.response?.status === 204) {
-                // No invitations found
-                return { invitations: [] };
+        } catch (error) {
+            console.error('Error getting pending invitations:', error);
+            if (axios.isAxiosError(error)) {
+                console.error('Response data:', error.response?.data);
+                console.error('Response status:', error.response?.status);
+            }
+            throw new BadRequestException(
+                `Failed to get pending invitations: ${error.message}`,
+            );
+        }
+    }
+
+    async getClientBusinesses(
+        userId: string,
+        clientId: string,
+        clientIdType: 'ni' | 'utr' = 'utr',
+    ): Promise<{
+        businesses: Array<{
+            businessId: string;
+            businessName: string;
+            businessType: string;
+            tradingName?: string;
+            address: {
+                line1: string;
+                line2?: string;
+                line3?: string;
+                line4?: string;
+                postcode: string;
+                countryCode: string;
+            };
+            accountingPeriod: {
+                startDate: string;
+                endDate: string;
+            };
+            accountingType: string;
+            commencementDate: string;
+            cessationDate?: string;
+            businessDescription?: string;
+            emailAddress?: string;
+            websiteAddress?: string;
+            contactDetails?: {
+                phoneNumber?: string;
+                mobileNumber?: string;
+                faxNumber?: string;
+            };
+            bankDetails?: {
+                accountName: string;
+                accountNumber: string;
+                sortCode: string;
+            };
+            industryClassifications?: {
+                sicCode?: string;
+                sicDescription?: string;
+            };
+            links: Array<{
+                href: string;
+                rel: string;
+                method: string;
+            }>;
+        }>;
+    }> {
+        try {
+            const accessToken = await this.getAccessToken(userId);
+            const userArn = await this.getArn(userId);
+
+            console.log('Getting businesses for client:', clientId);
+            console.log('Client ID type:', clientIdType);
+            console.log('ARN:', userArn);
+            console.log('Access token present:', !!accessToken);
+
+            // First, check if we have authorization for this client
+            const relationship = await this.checkAgencyRelationship(
+                userId,
+                userArn,
+                clientId,
+            );
+
+            if (!relationship.hasRelationship) {
+                throw new UnauthorizedException(
+                    'No authorization relationship found for this client',
+                );
             }
 
+            // Get businesses for the client
+            const response = await axios.get(
+                `${this.apiUrl}/agents/${userArn}/clients/${clientId}/businesses`,
+                {
+                    headers: {
+                        Accept: 'application/vnd.hmrc.1.0+json',
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                },
+            );
+
+            console.log('HMRC Businesses API Response:', response.data);
+
+            return {
+                businesses: response.data.businesses || [],
+            };
+        } catch (error) {
+            console.error('Error getting client businesses:', error);
+            if (axios.isAxiosError(error)) {
+                console.error('Response data:', error.response?.data);
+                console.error('Response status:', error.response?.status);
+
+                // Handle specific HMRC error codes
+                if (error.response?.status === 401) {
+                    throw new UnauthorizedException(
+                        'HMRC authorization failed',
+                    );
+                }
+                if (error.response?.status === 403) {
+                    throw new UnauthorizedException(
+                        'Insufficient permissions to access client businesses',
+                    );
+                }
+                if (error.response?.status === 404) {
+                    throw new NotFoundException(
+                        'Client or businesses not found',
+                    );
+                }
+            }
             throw new BadRequestException(
-                'Failed to retrieve pending invitations from HMRC',
+                `Failed to get client businesses: ${error.message}`,
+            );
+        }
+    }
+
+    async getClientBusinessDetails(
+        userId: string,
+        clientId: string,
+        businessId: string,
+    ): Promise<{
+        businessId: string;
+        businessName: string;
+        businessType: string;
+        tradingName?: string;
+        address: {
+            line1: string;
+            line2?: string;
+            line3?: string;
+            line4?: string;
+            postcode: string;
+            countryCode: string;
+        };
+        accountingPeriod: {
+            startDate: string;
+            endDate: string;
+        };
+        accountingType: string;
+        commencementDate: string;
+        cessationDate?: string;
+        businessDescription?: string;
+        emailAddress?: string;
+        websiteAddress?: string;
+        contactDetails?: {
+            phoneNumber?: string;
+            mobileNumber?: string;
+            faxNumber?: string;
+        };
+        bankDetails?: {
+            accountName: string;
+            accountNumber: string;
+            sortCode: string;
+        };
+        industryClassifications?: {
+            sicCode?: string;
+            sicDescription?: string;
+        };
+        links: Array<{
+            href: string;
+            rel: string;
+            method: string;
+        }>;
+    }> {
+        try {
+            const accessToken = await this.getAccessToken(userId);
+            const userArn = await this.getArn(userId);
+
+            console.log('Getting business details for:', businessId);
+            console.log('Client ID:', clientId);
+            console.log('ARN:', userArn);
+            console.log('Access token present:', !!accessToken);
+
+            const response = await axios.get(
+                `${this.apiUrl}/agents/${userArn}/clients/${clientId}/businesses/${businessId}`,
+                {
+                    headers: {
+                        Accept: 'application/vnd.hmrc.1.0+json',
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                },
+            );
+
+            console.log('HMRC Business Details API Response:', response.data);
+
+            return response.data;
+        } catch (error) {
+            console.error('Error getting business details:', error);
+            if (axios.isAxiosError(error)) {
+                console.error('Response data:', error.response?.data);
+                console.error('Response status:', error.response?.status);
+
+                if (error.response?.status === 401) {
+                    throw new UnauthorizedException(
+                        'HMRC authorization failed',
+                    );
+                }
+                if (error.response?.status === 403) {
+                    throw new UnauthorizedException(
+                        'Insufficient permissions to access business details',
+                    );
+                }
+                if (error.response?.status === 404) {
+                    throw new NotFoundException('Business not found');
+                }
+            }
+            throw new BadRequestException(
+                `Failed to get business details: ${error.message}`,
             );
         }
     }

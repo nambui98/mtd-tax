@@ -13,20 +13,105 @@ import React, { useState } from 'react';
 import Filter from './filter';
 import { clientsService } from '@/services/clients';
 import { useQuery } from '@tanstack/react-query';
+import { hmrcService } from '@/services/hmrc';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 
 type Props = {};
 
 export default function ClientsContent({}: Props) {
+    const { data: session } = useSession();
+    const router = useRouter();
     const [filters, setFilters] = useState<{
         search?: string;
         businessType?: string;
         assignee?: string;
     }>({});
+
     const { data: clients, isLoading } = useQuery({
         queryKey: ['clients', filters],
         queryFn: () => clientsService.getMyClients(filters),
     });
+
+    const { data: invitations, isLoading: isLoadingInvitations } = useQuery({
+        queryKey: ['invitations', session?.user.agentReferenceNumber],
+        queryFn: () =>
+            hmrcService.getInvitations(
+                session?.user.agentReferenceNumber as string,
+            ),
+    });
+    console.log('====================================');
     console.log(clients);
+    console.log('====================================');
+
+    // Calculate statistics based on invitation status
+    // const stats = React.useMemo(() => {
+    //     if (!clients)
+    //         return {
+    //             mtdReady: 0,
+    //             actionNeeded: 0,
+    //             criticalIssues: 0,
+    //             upcomingDeadlines: 0,
+    //         };
+
+    //     return {
+    //         mtdReady: clients.filter(
+    //             (c) => c.invitationStatus?.invitationStatus === 'accepted',
+    //         ).length,
+    //         actionNeeded: clients.filter(
+    //             (c) => c.invitationStatus?.invitationStatus === 'pending',
+    //         ).length,
+    //         criticalIssues: clients.filter(
+    //             (c) => c.invitationStatus?.invitationStatus === 'rejected',
+    //         ).length,
+    //         upcomingDeadlines: clients.filter(
+    //             (c) =>
+    //                 !c.invitationStatus ||
+    //                 c.invitationStatus.invitationStatus === 'not_requested',
+    //         ).length,
+    //     };
+    // }, [clients]);
+
+    const getInvitationStatusBadge = (status?: string) => {
+        switch (status) {
+            case 'Accepted':
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-success-light text-success">
+                        Authorized
+                    </span>
+                );
+            case 'Pending':
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-warning-light text-warning">
+                        Pending
+                    </span>
+                );
+            case 'Rejected':
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-danger-light text-danger">
+                        Rejected
+                    </span>
+                );
+            case 'Not Requested':
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600">
+                        Not Requested
+                    </span>
+                );
+            case 'Error':
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600">
+                        Error
+                    </span>
+                );
+            default:
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600">
+                        Unknown
+                    </span>
+                );
+        }
+    };
 
     return (
         <>
@@ -168,10 +253,9 @@ export default function ClientsContent({}: Props) {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                        {/* Client Row 1 */}
                         {isLoading ? (
                             <tr>
-                                <td colSpan={7} className="text-center py-4">
+                                <td colSpan={8} className="text-center py-4">
                                     <Loader2 className="size-4 animate-spin mx-auto" />
                                 </td>
                             </tr>
@@ -180,6 +264,11 @@ export default function ClientsContent({}: Props) {
                                 <tr
                                     className="hover:bg-gray-50"
                                     key={client.id}
+                                    onClick={() => {
+                                        router.push(
+                                            `/dashboard/clients/${client.id}`,
+                                        );
+                                    }}
                                 >
                                     <td className="px-4 py-3">
                                         <div className="flex items-center">
@@ -191,7 +280,6 @@ export default function ClientsContent({}: Props) {
                                                     href="client-detail-page.html"
                                                     className="font-medium text-gray-900"
                                                 >
-                                                    {/* {client.title}{' '} */}
                                                     {client.firstName}{' '}
                                                     {client.lastName}
                                                 </a>
@@ -200,7 +288,6 @@ export default function ClientsContent({}: Props) {
                                                 </div>
                                                 <div className="flex gap-1 mt-0.5">
                                                     <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 flex items-center">
-                                                        {/* <i className="fas fa-store text-[0.75rem] mr-1"></i>{' '} */}
                                                         {client.clientType}
                                                     </div>
                                                 </div>
@@ -208,49 +295,52 @@ export default function ClientsContent({}: Props) {
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 text-[0.875rem]">
-                                        {/* {client.businesses.length} */}
                                         --
                                     </td>
-                                    <td className="px-4 py-3 text-[0.875rem]">
-                                        {/* {client.businesses.length} */}
-                                        --
-                                    </td>
+                                    <td className="px-4 py-3">--</td>
                                     <td className="px-4 py-3">
                                         {/* <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-danger-light text-danger">
                                         Critical Issues
                                     </span> */}
-                                        --
+                                        {isLoadingInvitations ? (
+                                            <Loader2 className="size-4 animate-spin mx-auto" />
+                                        ) : (
+                                            getInvitationStatusBadge(
+                                                invitations?.invitations?.find(
+                                                    (invitation) =>
+                                                        invitation.invitationId ===
+                                                        client?.invitationId,
+                                                )?.status,
+                                            )
+                                        )}
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center">
                                             <div className="uppercase w-6 h-6 rounded-full bg-blue-500 text-white text-[0.75rem] flex items-center justify-center mr-1.5">
-                                                {client.assignee.firstName.charAt(
+                                                {client.assignee?.firstName?.charAt(
                                                     0,
                                                 )}
-                                                {client.assignee.lastName.charAt(
+                                                {client.assignee?.lastName?.charAt(
                                                     0,
                                                 )}
                                             </div>
                                             <div className="text-[0.875rem] text-gray-600">
-                                                {client.assignee.firstName}{' '}
-                                                {client.assignee.lastName}
+                                                {client.assignee?.firstName}{' '}
+                                                {client.assignee?.lastName}
                                             </div>
                                         </div>
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center">
                                             <div className="font-medium text-danger mr-1.5">
-                                                {/* {client.deadline} */}
                                                 --
                                             </div>
                                             <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                                                {/* {client.deadline} */}
                                                 --
                                             </div>
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 relative group">
-                                        {/* £175,000 */}
                                         {client.totalRevenue}
                                         <div className="absolute left-0 top-full mt-1 bg-white shadow-lg rounded-lg p-2.5 w-60 hidden group-hover:block z-50">
                                             <div className="text-[0.75rem] font-semibold text-gray-700 mb-1.5">
@@ -283,275 +373,11 @@ export default function ClientsContent({}: Props) {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan={7} className="text-center py-4">
+                                <td colSpan={8} className="text-center py-4">
                                     No clients found
                                 </td>
                             </tr>
                         )}
-
-                        {/* <tr className="hover:bg-gray-50">
-                            <td className="px-4 py-3">
-                                <div className="flex items-center">
-                                    <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 mr-3">
-                                        <i className="fas fa-user"></i>
-                                    </div>
-                                    <div>
-                                        <div className="font-medium text-gray-900">
-                                            Emma Taylor
-                                        </div>
-                                        <div className="text-[0.75rem] text-gray-500">
-                                            Self-Employed
-                                        </div>
-                                        <div className="flex gap-1 mt-0.5">
-                                            <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-primary-light text-primary-dark flex items-center">
-                                                <i className="fas fa-laptop text-[0.75rem] mr-1"></i>{' '}
-                                                Freelance
-                                            </div>
-                                            <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-primary-light text-primary-dark flex items-center">
-                                                <i className="fas fa-store text-[0.75rem] mr-1"></i>{' '}
-                                                Shop
-                                                <span className="ml-1 px-1 py-0.5 rounded bg-primary-light text-primary-dark text-[0.65rem]">
-                                                    NEW
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 text-[0.875rem]">2</td>
-                            <td className="px-4 py-3">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-warning-light text-warning">
-                                    Action Needed
-                                </span>
-                            </td>
-                            <td className="px-4 py-3">
-                                <div className="flex items-center">
-                                    <div className="w-6 h-6 rounded-full bg-green-500 text-white text-[0.75rem] flex items-center justify-center mr-1.5">
-                                        JW
-                                    </div>
-                                    <div className="text-[0.875rem] text-gray-600">
-                                        James Wilson
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3">
-                                <div className="flex items-center">
-                                    <div className="font-medium text-warning mr-1.5">
-                                        7 Aug 2026
-                                    </div>
-                                    <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                                        Q1
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 relative group">
-                                £45,000
-                                <div className="absolute left-0 top-full mt-1 bg-white shadow-lg rounded-lg p-2.5 w-60 hidden group-hover:block z-50">
-                                    <div className="text-[0.75rem] font-semibold text-gray-700 mb-1.5">
-                                        Business Revenue Breakdown
-                                    </div>
-                                    <div className="flex justify-between text-[0.75rem] mb-1">
-                                        <div className="text-gray-500">
-                                            Freelance Design
-                                        </div>
-                                        <div className="font-medium text-gray-900">
-                                            £38,500
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-between text-[0.75rem]">
-                                        <div className="text-gray-500">
-                                            Online Shop
-                                        </div>
-                                        <div className="font-medium text-gray-900">
-                                            £6,500
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                                <button className="p-1 text-gray-600 hover:bg-gray-100 hover:text-primary rounded">
-                                    <i className="fas fa-ellipsis-v"></i>
-                                </button>
-                            </td>
-                        </tr>
-
-                        <tr className="hover:bg-gray-50">
-                            <td className="px-4 py-3">
-                                <div className="flex items-center">
-                                    <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 mr-3">
-                                        <i className="fas fa-paint-brush"></i>
-                                    </div>
-                                    <div>
-                                        <div className="font-medium text-gray-900">
-                                            David Jones
-                                        </div>
-                                        <div className="text-[0.75rem] text-gray-500">
-                                            Multiple Businesses
-                                        </div>
-                                        <div className="flex gap-1 mt-0.5">
-                                            <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 flex items-center">
-                                                <i className="fas fa-building text-[0.75rem] mr-1"></i>{' '}
-                                                Co
-                                            </div>
-                                            <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-primary-light text-primary-dark flex items-center">
-                                                <i className="fas fa-coffee text-[0.75rem] mr-1"></i>{' '}
-                                                Café
-                                            </div>
-                                            <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 flex items-center">
-                                                <i className="fas fa-home text-[0.75rem] mr-1"></i>{' '}
-                                                Property
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 text-[0.875rem]">3</td>
-                            <td className="px-4 py-3">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-success-light text-success">
-                                    MTD Ready
-                                </span>
-                            </td>
-                            <td className="px-4 py-3">
-                                <div className="flex items-center">
-                                    <div className="w-6 h-6 rounded-full bg-orange-500 text-white text-[0.75rem] flex items-center justify-center mr-1.5">
-                                        EP
-                                    </div>
-                                    <div className="text-[0.875rem] text-gray-600">
-                                        Emma Parker
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3">
-                                <div className="flex items-center">
-                                    <div className="font-medium text-warning mr-1.5">
-                                        7 Aug 2026
-                                    </div>
-                                    <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                                        Q1
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 relative group">
-                                £165,000
-                                <div className="absolute left-0 top-full mt-1 bg-white shadow-lg rounded-lg p-2.5 w-60 hidden group-hover:block z-50">
-                                    <div className="text-[0.75rem] font-semibold text-gray-700 mb-1.5">
-                                        Business Revenue Breakdown
-                                    </div>
-                                    <div className="flex justify-between text-[0.75rem] mb-1">
-                                        <div className="text-gray-500">
-                                            Horizon Design Ltd
-                                        </div>
-                                        <div className="font-medium text-gray-900">
-                                            £120,000
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-between text-[0.75rem] mb-1">
-                                        <div className="text-gray-500">
-                                            Café (Self-Employed)
-                                        </div>
-                                        <div className="font-medium text-gray-900">
-                                            £35,000
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-between text-[0.75rem]">
-                                        <div className="text-gray-500">
-                                            Property
-                                        </div>
-                                        <div className="font-medium text-gray-900">
-                                            £10,000
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                                <button className="p-1 text-gray-600 hover:bg-gray-100 hover:text-primary rounded">
-                                    <i className="fas fa-ellipsis-v"></i>
-                                </button>
-                            </td>
-                        </tr>
-
-                        <tr className="hover:bg-gray-50">
-                            <td className="px-4 py-3">
-                                <div className="flex items-center">
-                                    <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 mr-3">
-                                        <i className="fas fa-globe"></i>
-                                    </div>
-                                    <div>
-                                        <div className="font-medium text-gray-900">
-                                            Jennifer Lee
-                                        </div>
-                                        <div className="text-[0.75rem] text-gray-500">
-                                            Self-Employed + Foreign
-                                        </div>
-                                        <div className="flex gap-1 mt-0.5">
-                                            <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-primary-light text-primary-dark flex items-center">
-                                                <i className="fas fa-laptop text-[0.75rem] mr-1"></i>{' '}
-                                                Consulting
-                                            </div>
-                                            <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-pink-50 text-pink-700 flex items-center">
-                                                <i className="fas fa-globe text-[0.75rem] mr-1"></i>{' '}
-                                                Foreign
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 text-[0.875rem]">2</td>
-                            <td className="px-4 py-3">
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-success-light text-success">
-                                    MTD Ready
-                                </span>
-                            </td>
-                            <td className="px-4 py-3">
-                                <div className="flex items-center">
-                                    <div className="w-6 h-6 rounded-full bg-blue-500 text-white text-[0.75rem] flex items-center justify-center mr-1.5">
-                                        SJ
-                                    </div>
-                                    <div className="text-[0.875rem] text-gray-600">
-                                        Sarah Johnson
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3">
-                                <div className="flex items-center">
-                                    <div className="font-medium text-success mr-1.5">
-                                        7 Aug 2026
-                                    </div>
-                                    <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                                        Q1
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 relative group">
-                                £82,000
-                                <div className="absolute left-0 top-full mt-1 bg-white shadow-lg rounded-lg p-2.5 w-60 hidden group-hover:block z-50">
-                                    <div className="text-[0.75rem] font-semibold text-gray-700 mb-1.5">
-                                        Business Revenue Breakdown
-                                    </div>
-                                    <div className="flex justify-between text-[0.75rem] mb-1">
-                                        <div className="text-gray-500">
-                                            Consulting (UK)
-                                        </div>
-                                        <div className="font-medium text-gray-900">
-                                            £55,000
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-between text-[0.75rem]">
-                                        <div className="text-gray-500">
-                                            Foreign Property
-                                        </div>
-                                        <div className="font-medium text-gray-900">
-                                            £27,000
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 text-right">
-                                <button className="p-1 text-gray-600 hover:bg-gray-100 hover:text-primary rounded">
-                                    <i className="fas fa-ellipsis-v"></i>
-                                </button>
-                            </td>
-                        </tr> */}
                     </tbody>
                 </table>
 

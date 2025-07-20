@@ -1,0 +1,1 @@
+ALTER TABLE "clients" ADD COLUMN "invitation_id" varchar(255);
