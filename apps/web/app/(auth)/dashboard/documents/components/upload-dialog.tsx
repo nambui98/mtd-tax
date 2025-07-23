@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogTrigger,
 } from '@workspace/ui/components/dialog';
 import {
     Search,
@@ -43,6 +44,7 @@ import {
     ArrowRight,
     Minus,
     Plus as PlusIcon,
+    Upload,
 } from 'lucide-react';
 import { Button } from '@workspace/ui/components/button';
 import { Input } from '@workspace/ui/components/input';
@@ -58,10 +60,12 @@ import { hmrcService } from '@/services/hmrc';
 import { useQuery } from '@tanstack/react-query';
 
 type Props = {
-    isOpen: boolean;
-    onClose: () => void;
+    isOpen?: boolean;
+    onClose?: () => void;
     documentName?: string;
     documentType?: 'pdf' | 'image' | 'excel' | 'default';
+    children?: React.ReactNode;
+    onFileUpload?: (file: File) => void;
 };
 
 type HmrcCategory = {
@@ -84,11 +88,17 @@ export default function UploadDialog({
     onClose,
     documentName = 'Document',
     documentType = 'default',
+    children,
+    onFileUpload,
 }: Props) {
+    const [isOpenDialog, setIsOpenDialog] = useState(isOpen || false);
     const [currentZoom, setCurrentZoom] = useState(1);
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages] = useState(2);
     const [showAddForm, setShowAddForm] = useState(false);
+    const [isDragOver, setIsDragOver] = useState(false);
+    const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [transactions, setTransactions] = useState([
         {
             id: 1,
@@ -155,6 +165,44 @@ export default function UploadDialog({
 
     const transactionCategories = categoriesData?.transactionCategories || [];
     const businessCategories = categoriesData?.businessCategories || [];
+
+    const handleFileUpload = (file: File | undefined) => {
+        if (file) {
+            setUploadedFile(file);
+            onFileUpload?.(file);
+        }
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) {
+            handleFileUpload(files[0] || undefined);
+        }
+    };
+
+    const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            handleFileUpload(files[0] || undefined);
+        }
+    };
+
+    const handleClickUpload = () => {
+        fileInputRef.current?.click();
+    };
 
     const getDocumentIcon = () => {
         switch (documentType) {
@@ -277,7 +325,8 @@ export default function UploadDialog({
         setCurrentPage(Math.min(currentPage + 1, totalPages));
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+        <Dialog open={isOpenDialog} onOpenChange={setIsOpenDialog}>
+            <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent className="max-w-7xl md:max-w-7xl max-h-[90vh] overflow-hidden p-0 space-y-0 gap-0">
                 <DialogHeader className="px-6 py-4 border-b border-gray-200">
                     <div className="flex justify-between items-center">
@@ -290,7 +339,9 @@ export default function UploadDialog({
                         <div className="flex items-center">
                             <span className="text-sm text-gray-600 mr-5">
                                 <span className="font-medium text-gray-900">
-                                    {documentName}
+                                    {uploadedFile
+                                        ? uploadedFile.name
+                                        : documentName}
                                 </span>
                             </span>
                         </div>
@@ -326,17 +377,76 @@ export default function UploadDialog({
                         </div>
 
                         <div className="flex-1 bg-gray-100 flex items-center justify-center overflow-auto relative">
-                            <div
-                                className="bg-white w-[90%] h-[95%] shadow-sm relative"
-                                style={{ transform: `scale(${currentZoom})` }}
-                            >
-                                <div className="flex flex-col items-center justify-center absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center text-gray-400 w-full">
-                                    {getDocumentIcon()}
-                                    <div className="text-sm mt-4">
-                                        {documentName} Preview
+                            {!uploadedFile ? (
+                                <div
+                                    className={`w-[90%] h-[95%] border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-colors ${
+                                        isDragOver
+                                            ? 'border-blue-500 bg-blue-50'
+                                            : 'border-gray-300 bg-white'
+                                    }`}
+                                    onDragOver={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={handleDrop}
+                                    onClick={handleClickUpload}
+                                    style={{ cursor: 'pointer' }}
+                                >
+                                    <CloudUpload className="w-12 h-12 text-gray-400 mb-4" />
+                                    <div className="text-center">
+                                        <p className="text-lg font-medium text-gray-900 mb-2">
+                                            {isDragOver
+                                                ? 'Drop your file here'
+                                                : 'Upload Document'}
+                                        </p>
+                                        <p className="text-sm text-gray-500 mb-4">
+                                            {isDragOver
+                                                ? 'Release to upload'
+                                                : 'Drag and drop your file here, or click to browse'}
+                                        </p>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-sm"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleClickUpload();
+                                            }}
+                                        >
+                                            <Upload className="w-4 h-4 mr-2" />
+                                            Choose File
+                                        </Button>
+                                    </div>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        className="hidden"
+                                        accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls,.doc,.docx"
+                                        onChange={handleFileInputChange}
+                                    />
+                                </div>
+                            ) : (
+                                <div
+                                    className="bg-white w-[90%] h-[95%] shadow-sm relative"
+                                    style={{
+                                        transform: `scale(${currentZoom})`,
+                                    }}
+                                >
+                                    <div className="flex flex-col items-center justify-center absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center text-gray-400 w-full">
+                                        {getDocumentIcon()}
+                                        <div className="text-sm mt-4">
+                                            {uploadedFile.name} Preview
+                                        </div>
+                                        <div className="text-xs text-gray-400 mt-2">
+                                            File size:{' '}
+                                            {(
+                                                uploadedFile.size /
+                                                1024 /
+                                                1024
+                                            ).toFixed(2)}{' '}
+                                            MB
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
 
                         <div className="px-4 py-3 border-t border-gray-200 flex justify-between items-center bg-gray-50">

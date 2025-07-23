@@ -15,6 +15,7 @@ import {
     createUpdateSchema,
 } from 'drizzle-zod';
 import z from 'zod/v3';
+import { relations } from 'drizzle-orm';
 import { usersTable } from './users';
 import { clientsTable } from './clients';
 
@@ -53,3 +54,19 @@ export type NewAssignment = typeof assignmentsTable.$inferInsert;
 export type AssignmentResponse = typeof assignmentsTable.$inferSelect;
 
 export type InsertAssignment = z.infer<typeof insertAssignmentSchema>;
+
+// Relations
+export const assignmentsRelations = relations(assignmentsTable, ({ one }) => ({
+    client: one(clientsTable, {
+        fields: [assignmentsTable.clientId],
+        references: [clientsTable.id],
+    }),
+    staffUser: one(usersTable, {
+        fields: [assignmentsTable.staffUserId],
+        references: [usersTable.id],
+    }),
+    createdBy: one(usersTable, {
+        fields: [assignmentsTable.createdBy],
+        references: [usersTable.id],
+    }),
+}));

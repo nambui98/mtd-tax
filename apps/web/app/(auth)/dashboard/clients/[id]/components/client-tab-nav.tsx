@@ -25,76 +25,6 @@ export default function ClientTabNav({
     return (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="flex border-b border-gray-200">
-                <button
-                    onClick={() => setActiveTab('overview')}
-                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === 'overview'
-                            ? 'border-primary text-primary'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                    <Info className="w-4 h-4 inline mr-2" />
-                    Overview
-                </button>
-                <button
-                    onClick={() => setActiveTab('documents')}
-                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === 'documents'
-                            ? 'border-primary text-primary'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                    <FileText className="w-4 h-4 inline mr-2" />
-                    Documents
-                </button>
-                <button
-                    onClick={() => setActiveTab('submissions')}
-                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === 'submissions'
-                            ? 'border-primary text-primary'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                    <ClipboardList className="w-4 h-4 inline mr-2" />
-                    Submissions
-                </button>
-                <button
-                    onClick={() => setActiveTab('financials')}
-                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === 'financials'
-                            ? 'border-primary text-primary'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                    <PoundSterling className="w-4 h-4 inline mr-2" />
-                    Financials
-                </button>
-                <button
-                    onClick={() => setActiveTab('transactions')}
-                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === 'transactions'
-                            ? 'border-primary text-primary'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                    <ArrowLeftRight className="w-4 h-4 inline mr-2" />
-                    Transactions
-                </button>
-                <button
-                    onClick={() => setActiveTab('activity')}
-                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === 'activity'
-                            ? 'border-primary text-primary'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                    <History className="w-4 h-4 inline mr-2" />
-                    Activity
-                </button>
-            </div>
-
-            {/* Business Tabs (Secondary Navigation) */}
-            <div className="flex border-b border-gray-200">
                 {businesses.map((business) => (
                     <button
                         onClick={() => setActiveBusiness(business.businessId)}
@@ -172,6 +102,76 @@ export default function ClientTabNav({
                     )}
                 </button> */}
             </div>
+            <div className="flex border-b border-gray-200">
+                <button
+                    onClick={() => setActiveTab('overview')}
+                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                        activeTab === 'overview'
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    <Info className="w-4 h-4 inline mr-2" />
+                    Overview
+                </button>
+                <button
+                    onClick={() => setActiveTab('documents')}
+                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                        activeTab === 'documents'
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    <FileText className="w-4 h-4 inline mr-2" />
+                    Documents
+                </button>
+                <button
+                    onClick={() => setActiveTab('submissions')}
+                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                        activeTab === 'submissions'
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    <ClipboardList className="w-4 h-4 inline mr-2" />
+                    Submissions
+                </button>
+                <button
+                    onClick={() => setActiveTab('financials')}
+                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                        activeTab === 'financials'
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    <PoundSterling className="w-4 h-4 inline mr-2" />
+                    Financials
+                </button>
+                <button
+                    onClick={() => setActiveTab('transactions')}
+                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                        activeTab === 'transactions'
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    <ArrowLeftRight className="w-4 h-4 inline mr-2" />
+                    Transactions
+                </button>
+                <button
+                    onClick={() => setActiveTab('activity')}
+                    className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                        activeTab === 'activity'
+                            ? 'border-primary text-primary'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    <History className="w-4 h-4 inline mr-2" />
+                    Activity
+                </button>
+            </div>
+
+            {/* Business Tabs (Secondary Navigation) */}
         </div>
     );
 }

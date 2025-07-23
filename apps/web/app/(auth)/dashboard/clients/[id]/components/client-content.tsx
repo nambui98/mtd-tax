@@ -9,6 +9,7 @@ import ClientHeader from './client-header';
 import ClientTabNav from './client-tab-nav';
 import HmrcAuthStatus from './hmrc-auth-status';
 import HmrcBusinesses from './hmrc-businesses';
+import ClientDocuments from './client-documents';
 
 export const getInvitationStatusBadge = (status?: string) => {
     switch (status) {
@@ -133,6 +134,9 @@ export default function ClientContent({ clientId }: Props) {
                 setActiveBusiness={setActiveBusiness}
                 businesses={hmrcBusinesses?.businesses.listOfBusinesses || []}
             />
+            {activeTab === 'documents' && (
+                <ClientDocuments clientId={clientId} />
+            )}
 
             {/* Content based on active tab */}
             {activeTab === 'financials' && (

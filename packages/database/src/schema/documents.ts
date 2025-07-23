@@ -229,8 +229,11 @@ export const documentFoldersRelations = relations(
         parentFolder: one(documentFoldersTable, {
             fields: [documentFoldersTable.parentFolderId],
             references: [documentFoldersTable.id],
+            relationName: 'parent_child_folders',
         }),
-        childFolders: many(documentFoldersTable),
+        childFolders: many(documentFoldersTable, {
+            relationName: 'parent_child_folders',
+        }),
         user: one(usersTable, {
             fields: [documentFoldersTable.userId],
             references: [usersTable.id],
