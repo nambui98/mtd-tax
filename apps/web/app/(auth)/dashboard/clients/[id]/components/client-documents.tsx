@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@workspace/ui/components/button';
 import {
     Upload,
@@ -34,14 +34,25 @@ import {
     Image,
     Send,
     FileDown,
+    Loader2,
 } from 'lucide-react';
 import UploadDialog from '@/app/(auth)/dashboard/documents/components/upload-dialog';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { documentsService } from '@/services/documents';
+import { toast } from 'sonner';
+import { TypeOfBusiness } from '@/types/document';
 
 type Props = {
     clientId: string;
+    businessId: string;
+    typeOfBusiness?: TypeOfBusiness;
 };
 
-export default function ClientDocuments({ clientId }: Props) {
+export default function ClientDocuments({
+    clientId,
+    businessId,
+    typeOfBusiness,
+}: Props) {
     const [isLoadingDocuments] = useState(false);
     const [showPreviewModal, setShowPreviewModal] = useState(false);
     const [showAddTransactionModal, setShowAddTransactionModal] =
@@ -49,70 +60,95 @@ export default function ClientDocuments({ clientId }: Props) {
     const [currentZoom, setCurrentZoom] = useState(1);
     const [currentPage, setCurrentPage] = useState(1);
     const [showAddTransactionForm, setShowAddTransactionForm] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedDocumentType, setSelectedDocumentType] =
+        useState('All Document Types');
+    const [selectedBusiness, setSelectedBusiness] = useState('All Businesses');
+    const [selectedStatus, setSelectedStatus] = useState('All Statuses');
+    const queryClient = useQueryClient();
 
-    const documents = [
-        {
-            id: 1,
-            name: 'April 2026 Bank Statement (Consulting)',
-            type: 'pdf',
-            date: 'May 15, 2026',
-            business: 'Consulting',
-            uploadedBy: 'Client Upload',
-            pages: 2,
-            status: 'processed',
-            tags: ['Bank Statement', 'Income'],
+    // Fetch documents for this client
+    const {
+        data: documents,
+        isLoading: documentsLoading,
+        refetch: refetchDocuments,
+    } = useQuery({
+        queryKey: ['client-documents', clientId],
+        queryFn: () => documentsService.getDocuments({ clientId }),
+        enabled: !!clientId,
+    });
+
+    // Fetch document statistics
+    const { data: documentStats } = useQuery({
+        queryKey: ['client-document-stats', clientId],
+        queryFn: () => documentsService.getDocumentStats(clientId),
+        enabled: !!clientId,
+    });
+
+    // Delete document mutation
+    const deleteDocumentMutation = useMutation({
+        mutationFn: (documentId: string) =>
+            documentsService.deleteDocument(documentId),
+        onSuccess: () => {
+            toast.success('Document deleted successfully');
+            refetchDocuments();
         },
-        {
-            id: 2,
-            name: 'Property Income Q1 2026',
-            type: 'excel',
-            date: 'May 10, 2026',
-            business: 'Property Rental',
-            uploadedBy: 'Client Upload',
-            status: 'processed',
-            tags: ['Income Report'],
+        onError: (error: any) => {
+            toast.error(`Failed to delete document: ${error.message}`);
         },
-        {
-            id: 3,
-            name: 'Foreign Property Expenses',
-            type: 'image',
-            date: 'May 5, 2026',
-            business: 'Foreign Income',
-            uploadedBy: 'Client Upload',
-            status: 'pending',
-            tags: ['Receipt', 'Expense'],
+    });
+
+    // Download document mutation
+    const downloadDocumentMutation = useMutation({
+        mutationFn: async (documentId: string) => {
+            const result =
+                await documentsService.getDocumentDownloadUrl(documentId);
+            return result.downloadUrl;
         },
-        {
-            id: 4,
-            name: '2025-2026 Year End Report',
-            type: 'default',
-            date: 'April 15, 2026',
-            business: 'All Businesses',
-            uploadedBy: 'Sarah Johnson',
-            status: 'processed',
-            tags: ['Tax Document'],
+        onSuccess: (downloadUrl) => {
+            // Open download URL in new tab
+            window.open(downloadUrl, '_blank');
+            toast.success('Download started');
         },
-        {
-            id: 5,
-            name: 'Software Subscription Invoice',
-            type: 'pdf',
-            date: 'April 10, 2026',
-            business: 'Consulting',
-            uploadedBy: 'Client Upload',
-            status: 'error',
-            tags: ['Invoice', 'Expense'],
+        onError: (error: any) => {
+            toast.error(`Failed to download document: ${error.message}`);
         },
-        {
-            id: 6,
-            name: 'Property Maintenance Receipt',
-            type: 'image',
-            date: 'April 3, 2026',
-            business: 'Property Rental',
-            uploadedBy: 'Client Upload',
-            status: 'processed',
-            tags: ['Receipt', 'Expense'],
-        },
-    ];
+    });
+
+    const handleDeleteDocument = (documentId: string) => {
+        if (confirm('Are you sure you want to delete this document?')) {
+            deleteDocumentMutation.mutate(documentId);
+        }
+    };
+
+    const handleDownloadDocument = (documentId: string) => {
+        downloadDocumentMutation.mutate(documentId);
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearchTerm(e.target.value);
+    };
+
+    // Filter documents based on search and filters
+    const filteredDocuments =
+        documents?.filter((doc) => {
+            const matchesSearch = doc.originalFileName
+                .toLowerCase()
+                .includes(searchTerm.toLowerCase());
+            const matchesType =
+                selectedDocumentType === 'All Document Types' ||
+                doc.documentType === selectedDocumentType;
+            const matchesBusiness =
+                selectedBusiness === 'All Businesses' ||
+                doc.businessId === selectedBusiness;
+            const matchesStatus =
+                selectedStatus === 'All Statuses' ||
+                doc.status === selectedStatus;
+
+            return (
+                matchesSearch && matchesType && matchesBusiness && matchesStatus
+            );
+        }) || [];
 
     const getDocumentIcon = (type: string) => {
         switch (type) {
@@ -130,10 +166,12 @@ export default function ClientDocuments({ clientId }: Props) {
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'processed':
+            case 'approved':
                 return 'bg-green-500';
             case 'pending':
                 return 'bg-yellow-500';
             case 'error':
+            case 'rejected':
                 return 'bg-red-500';
             default:
                 return 'bg-gray-500';
@@ -143,11 +181,14 @@ export default function ClientDocuments({ clientId }: Props) {
     const getStatusText = (status: string) => {
         switch (status) {
             case 'processed':
+            case 'approved':
                 return 'Processed';
             case 'pending':
                 return 'Processing';
             case 'error':
                 return 'Needs Review';
+            case 'rejected':
+                return 'Rejected';
             default:
                 return 'Unknown';
         }
@@ -156,10 +197,12 @@ export default function ClientDocuments({ clientId }: Props) {
     const getStatusTextColor = (status: string) => {
         switch (status) {
             case 'processed':
+            case 'approved':
                 return 'text-green-700';
             case 'pending':
                 return 'text-yellow-700';
             case 'error':
+            case 'rejected':
                 return 'text-red-700';
             default:
                 return 'text-gray-700';
@@ -186,6 +229,22 @@ export default function ClientDocuments({ clientId }: Props) {
         }
     };
 
+    const formatFileSize = (bytes: number) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const formatDate = (dateString: string) => {
+        return new Date(dateString).toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+        });
+    };
+
     return (
         <div className="space-y-6">
             {/* AI Document Processing Info */}
@@ -205,15 +264,23 @@ export default function ClientDocuments({ clientId }: Props) {
                         </div>
                         <div className="flex gap-4 text-xs text-blue-900">
                             <div>
-                                <span className="font-semibold">3</span>{' '}
+                                <span className="font-semibold">
+                                    {documentStats?.total || 0}
+                                </span>{' '}
                                 documents processed today
                             </div>
                             <div>
-                                <span className="font-semibold">8</span>{' '}
+                                <span className="font-semibold">
+                                    {documentStats?.totalTransactions || 0}
+                                </span>{' '}
                                 transactions extracted
                             </div>
                             <div>
-                                <span className="font-semibold">95%</span>{' '}
+                                <span className="font-semibold">
+                                    {documentStats?.aiAccuracy
+                                        ? `${(documentStats.aiAccuracy * 100).toFixed(0)}%`
+                                        : '95%'}
+                                </span>{' '}
                                 accuracy rate
                             </div>
                         </div>
@@ -243,21 +310,37 @@ export default function ClientDocuments({ clientId }: Props) {
                         type="text"
                         placeholder="Search documents..."
                         className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={searchTerm}
+                        onChange={handleSearch}
                     />
-                    <select className="px-3 py-2 border border-gray-300 rounded-md text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select
+                        className="px-3 py-2 border border-gray-300 rounded-md text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={selectedDocumentType}
+                        onChange={(e) =>
+                            setSelectedDocumentType(e.target.value)
+                        }
+                    >
                         <option>All Document Types</option>
                         <option>Receipts</option>
                         <option>Invoices</option>
                         <option>Bank Statements</option>
                         <option>Tax Documents</option>
                     </select>
-                    <select className="px-3 py-2 border border-gray-300 rounded-md text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select
+                        className="px-3 py-2 border border-gray-300 rounded-md text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={selectedBusiness}
+                        onChange={(e) => setSelectedBusiness(e.target.value)}
+                    >
                         <option>All Businesses</option>
                         <option>Consulting (Self-Employed)</option>
                         <option>Property Rental</option>
                         <option>Foreign Income</option>
                     </select>
-                    <select className="px-3 py-2 border border-gray-300 rounded-md text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select
+                        className="px-3 py-2 border border-gray-300 rounded-md text-sm min-w-[150px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={selectedStatus}
+                        onChange={(e) => setSelectedStatus(e.target.value)}
+                    >
                         <option>All Statuses</option>
                         <option>Processed</option>
                         <option>Pending</option>
@@ -269,7 +352,11 @@ export default function ClientDocuments({ clientId }: Props) {
                         <Filter className="w-4 h-4 mr-2" />
                         Filters
                     </Button>
-                    <UploadDialog>
+                    <UploadDialog
+                        clientId={clientId}
+                        businessId={businessId}
+                        typeOfBusiness={typeOfBusiness}
+                    >
                         <Button size="sm">
                             <Plus className="w-4 h-4 mr-2" />
                             Upload
@@ -291,158 +378,242 @@ export default function ClientDocuments({ clientId }: Props) {
                 </a>
             </div>
 
-            {/* May Documents */}
-            <div className="text-sm font-semibold text-gray-600 border-b border-gray-200 pb-2 mb-4">
-                May 2026
-            </div>
-            <div className="space-y-0">
-                {documents.slice(0, 3).map((doc) => (
-                    <div
-                        key={doc.id}
-                        className="flex items-center p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => setShowPreviewModal(true)}
-                    >
-                        <div className="w-10 h-10 bg-gray-100 rounded-md flex items-center justify-center mr-4">
-                            {getDocumentIcon(doc.type)}
-                        </div>
-                        <div className="flex-1">
-                            <div className="font-medium text-gray-900 mb-1">
-                                {doc.name}
-                            </div>
-                            <div className="flex text-xs text-gray-600 gap-4 flex-wrap">
-                                <div className="flex items-center">
-                                    <Calendar className="w-3 h-3 mr-1" />
-                                    {doc.date}
-                                </div>
-                                <div className="flex items-center">
-                                    <Briefcase className="w-3 h-3 mr-1" />
-                                    {doc.business}
-                                </div>
-                                <div className="flex items-center">
-                                    <User className="w-3 h-3 mr-1" />
-                                    {doc.uploadedBy}
-                                </div>
-                                {doc.pages && (
-                                    <div className="flex items-center">
-                                        <FileText className="w-3 h-3 mr-1" />
-                                        {doc.pages} pages
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex gap-2 mt-2">
-                                {doc.tags.map((tag, index) => (
-                                    <span
-                                        key={index}
-                                        className={`px-2 py-1 text-xs rounded-full ${getTagColor(tag)}`}
-                                    >
-                                        {tag}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="flex items-center mr-4">
-                            <div
-                                className={`w-2 h-2 rounded-full ${getStatusColor(doc.status)} mr-2`}
-                            ></div>
-                            <span
-                                className={`text-xs font-medium ${getStatusTextColor(doc.status)}`}
-                            >
-                                {getStatusText(doc.status)}
-                            </span>
-                        </div>
-                        <div className="flex gap-1">
-                            <button className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors">
-                                <Eye className="w-4 h-4" />
-                            </button>
-                            <button className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors">
-                                <Download className="w-4 h-4" />
-                            </button>
-                            <button className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors">
-                                <MoreVertical className="w-4 h-4" />
-                            </button>
-                        </div>
+            {/* Loading State */}
+            {documentsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                    <span className="ml-2 text-gray-600">
+                        Loading documents...
+                    </span>
+                </div>
+            ) : filteredDocuments.length === 0 ? (
+                <div className="text-center py-12">
+                    <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No documents found</p>
+                </div>
+            ) : (
+                <>
+                    {/* May Documents */}
+                    <div className="text-sm font-semibold text-gray-600 border-b border-gray-200 pb-2 mb-4">
+                        May 2026
                     </div>
-                ))}
-            </div>
+                    <div className="space-y-0">
+                        {filteredDocuments.slice(0, 3).map((doc) => (
+                            <div
+                                key={doc.id}
+                                className="flex items-center p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+                                onClick={() => setShowPreviewModal(true)}
+                            >
+                                <div className="w-10 h-10 bg-gray-100 rounded-md flex items-center justify-center mr-4">
+                                    {getDocumentIcon(doc.fileType)}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="font-medium text-gray-900 mb-1">
+                                        {doc.originalFileName}
+                                    </div>
+                                    <div className="flex text-xs text-gray-600 gap-4 flex-wrap">
+                                        <div className="flex items-center">
+                                            <Calendar className="w-3 h-3 mr-1" />
+                                            {formatDate(doc.uploadedAt)}
+                                        </div>
+                                        <div className="flex items-center">
+                                            <Briefcase className="w-3 h-3 mr-1" />
+                                            {doc.businessId || 'All Businesses'}
+                                        </div>
+                                        <div className="flex items-center">
+                                            <User className="w-3 h-3 mr-1" />
+                                            Client Upload
+                                        </div>
+                                        <div className="flex items-center">
+                                            <FileText className="w-3 h-3 mr-1" />
+                                            {formatFileSize(doc.fileSize)}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 mt-2">
+                                        <span
+                                            className={`px-2 py-1 text-xs rounded-full ${getTagColor(doc.documentType)}`}
+                                        >
+                                            {doc.documentType}
+                                        </span>
+                                        {doc.aiExtractedTransactions && (
+                                            <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">
+                                                {doc.aiExtractedTransactions}{' '}
+                                                transactions
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex items-center mr-4">
+                                    <div
+                                        className={`w-2 h-2 rounded-full ${getStatusColor(doc.status)} mr-2`}
+                                    ></div>
+                                    <span
+                                        className={`text-xs font-medium ${getStatusTextColor(doc.status)}`}
+                                    >
+                                        {getStatusText(doc.status)}
+                                    </span>
+                                </div>
+                                <div className="flex gap-1">
+                                    <button
+                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowPreviewModal(true);
+                                        }}
+                                    >
+                                        <Eye className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDownloadDocument(doc.id);
+                                        }}
+                                        disabled={
+                                            downloadDocumentMutation.isPending
+                                        }
+                                    >
+                                        {downloadDocumentMutation.isPending ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Download className="w-4 h-4" />
+                                        )}
+                                    </button>
+                                    <button
+                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteDocument(doc.id);
+                                        }}
+                                        disabled={
+                                            deleteDocumentMutation.isPending
+                                        }
+                                    >
+                                        {deleteDocumentMutation.isPending ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <MoreVertical className="w-4 h-4" />
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
 
-            {/* April Documents */}
-            <div className="text-sm font-semibold text-gray-600 border-b border-gray-200 pb-2 mb-4 mt-6">
-                April 2026
-            </div>
-            <div className="space-y-0">
-                {documents.slice(3).map((doc) => (
-                    <div
-                        key={doc.id}
-                        className="flex items-center p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => setShowPreviewModal(true)}
-                    >
-                        <div className="w-10 h-10 bg-gray-100 rounded-md flex items-center justify-center mr-4">
-                            {getDocumentIcon(doc.type)}
-                        </div>
-                        <div className="flex-1">
-                            <div className="font-medium text-gray-900 mb-1">
-                                {doc.name}
-                            </div>
-                            <div className="flex text-xs text-gray-600 gap-4 flex-wrap">
-                                <div className="flex items-center">
-                                    <Calendar className="w-3 h-3 mr-1" />
-                                    {doc.date}
-                                </div>
-                                <div className="flex items-center">
-                                    <Briefcase className="w-3 h-3 mr-1" />
-                                    {doc.business}
-                                </div>
-                                <div className="flex items-center">
-                                    <User className="w-3 h-3 mr-1" />
-                                    {doc.uploadedBy}
-                                </div>
-                                {doc.pages && (
-                                    <div className="flex items-center">
-                                        <FileText className="w-3 h-3 mr-1" />
-                                        {doc.pages} pages
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex gap-2 mt-2">
-                                {doc.tags.map((tag, index) => (
-                                    <span
-                                        key={index}
-                                        className={`px-2 py-1 text-xs rounded-full ${getTagColor(tag)}`}
-                                    >
-                                        {tag}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="flex items-center mr-4">
-                            <div
-                                className={`w-2 h-2 rounded-full ${getStatusColor(doc.status)} mr-2`}
-                            ></div>
-                            <span
-                                className={`text-xs font-medium ${getStatusTextColor(doc.status)}`}
-                            >
-                                {getStatusText(doc.status)}
-                            </span>
-                        </div>
-                        <div className="flex gap-1">
-                            <button className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors">
-                                <Eye className="w-4 h-4" />
-                            </button>
-                            <button className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors">
-                                <Download className="w-4 h-4" />
-                            </button>
-                            <button className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors">
-                                <MoreVertical className="w-4 h-4" />
-                            </button>
-                        </div>
+                    {/* April Documents */}
+                    <div className="text-sm font-semibold text-gray-600 border-b border-gray-200 pb-2 mb-4 mt-6">
+                        April 2026
                     </div>
-                ))}
-            </div>
+                    <div className="space-y-0">
+                        {filteredDocuments.slice(3).map((doc) => (
+                            <div
+                                key={doc.id}
+                                className="flex items-center p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+                                onClick={() => setShowPreviewModal(true)}
+                            >
+                                <div className="w-10 h-10 bg-gray-100 rounded-md flex items-center justify-center mr-4">
+                                    {getDocumentIcon(doc.fileType)}
+                                </div>
+                                <div className="flex-1">
+                                    <div className="font-medium text-gray-900 mb-1">
+                                        {doc.originalFileName}
+                                    </div>
+                                    <div className="flex text-xs text-gray-600 gap-4 flex-wrap">
+                                        <div className="flex items-center">
+                                            <Calendar className="w-3 h-3 mr-1" />
+                                            {formatDate(doc.uploadedAt)}
+                                        </div>
+                                        <div className="flex items-center">
+                                            <Briefcase className="w-3 h-3 mr-1" />
+                                            {doc.businessId || 'All Businesses'}
+                                        </div>
+                                        <div className="flex items-center">
+                                            <User className="w-3 h-3 mr-1" />
+                                            Client Upload
+                                        </div>
+                                        <div className="flex items-center">
+                                            <FileText className="w-3 h-3 mr-1" />
+                                            {formatFileSize(doc.fileSize)}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 mt-2">
+                                        <span
+                                            className={`px-2 py-1 text-xs rounded-full ${getTagColor(doc.documentType)}`}
+                                        >
+                                            {doc.documentType}
+                                        </span>
+                                        {doc.aiExtractedTransactions && (
+                                            <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">
+                                                {doc.aiExtractedTransactions}{' '}
+                                                transactions
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex items-center mr-4">
+                                    <div
+                                        className={`w-2 h-2 rounded-full ${getStatusColor(doc.status)} mr-2`}
+                                    ></div>
+                                    <span
+                                        className={`text-xs font-medium ${getStatusTextColor(doc.status)}`}
+                                    >
+                                        {getStatusText(doc.status)}
+                                    </span>
+                                </div>
+                                <div className="flex gap-1">
+                                    <button
+                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowPreviewModal(true);
+                                        }}
+                                    >
+                                        <Eye className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDownloadDocument(doc.id);
+                                        }}
+                                        disabled={
+                                            downloadDocumentMutation.isPending
+                                        }
+                                    >
+                                        {downloadDocumentMutation.isPending ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Download className="w-4 h-4" />
+                                        )}
+                                    </button>
+                                    <button
+                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteDocument(doc.id);
+                                        }}
+                                        disabled={
+                                            deleteDocumentMutation.isPending
+                                        }
+                                    >
+                                        {deleteDocumentMutation.isPending ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <MoreVertical className="w-4 h-4" />
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </>
+            )}
 
             {/* Pagination */}
             <div className="flex justify-between items-center p-4 bg-gray-50 rounded-b-lg border-t border-gray-200">
                 <div className="text-sm text-gray-600">
-                    Showing 6 of 78 documents
+                    Showing {filteredDocuments.length} of{' '}
+                    {documents?.length || 0} documents
                 </div>
                 <div className="flex gap-2">
                     <button className="px-3 py-1 text-sm border border-gray-300 rounded-md bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -481,7 +652,7 @@ export default function ClientDocuments({ clientId }: Props) {
                             <div className="flex items-center">
                                 <div className="mr-5 text-sm text-gray-600">
                                     <span className="font-medium text-gray-900">
-                                        April 2026 Bank Statement (Consulting)
+                                        Document Preview
                                     </span>
                                 </div>
                                 <button
@@ -546,7 +717,7 @@ export default function ClientDocuments({ clientId }: Props) {
                                 <div className="p-4 border-b border-gray-200 flex justify-between items-center">
                                     <div className="text-sm font-medium text-gray-900">
                                         <span className="text-blue-600 font-semibold">
-                                            6
+                                            0
                                         </span>{' '}
                                         Transactions Extracted
                                     </div>
@@ -575,71 +746,16 @@ export default function ClientDocuments({ clientId }: Props) {
                                 </div>
 
                                 <div className="h-[552px] overflow-y-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-gray-50 sticky top-0">
-                                            <tr>
-                                                <th className="text-left p-3 text-xs font-semibold text-gray-600 border-b border-gray-200">
-                                                    Date
-                                                </th>
-                                                <th className="text-left p-3 text-xs font-semibold text-gray-600 border-b border-gray-200">
-                                                    Description
-                                                </th>
-                                                <th className="text-left p-3 text-xs font-semibold text-gray-600 border-b border-gray-200">
-                                                    Category
-                                                </th>
-                                                <th className="text-right p-3 text-xs font-semibold text-gray-600 border-b border-gray-200">
-                                                    Amount
-                                                </th>
-                                                <th className="text-center p-3 text-xs font-semibold text-gray-600 border-b border-gray-200">
-                                                    Status
-                                                </th>
-                                                <th className="text-center p-3 text-xs font-semibold text-gray-600 border-b border-gray-200">
-                                                    Actions
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {/* Sample transactions */}
-                                            <tr className="border-b border-gray-200 bg-blue-50">
-                                                <td className="p-3 text-sm">
-                                                    Apr 15, 2026
-                                                </td>
-                                                <td className="p-3 text-sm font-medium">
-                                                    Client Payment - Project
-                                                    Alpha
-                                                </td>
-                                                <td className="p-3 text-sm">
-                                                    <span className="inline-flex px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800 mr-2">
-                                                        Income
-                                                    </span>
-                                                    <span className="inline-flex items-center text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                                                        <Bot className="w-3 h-3 mr-1" />
-                                                        AI Generated
-                                                    </span>
-                                                </td>
-                                                <td className="p-3 text-sm text-right font-medium text-green-600">
-                                                    £5,000.00
-                                                </td>
-                                                <td className="p-3 text-sm text-center">
-                                                    <span className="inline-flex items-center text-xs font-medium text-green-700">
-                                                        <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                                                        Verified
-                                                    </span>
-                                                </td>
-                                                <td className="p-3 text-sm text-center">
-                                                    <div className="flex justify-center gap-1">
-                                                        <button className="w-6 h-6 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200">
-                                                            <Edit className="w-3 h-3" />
-                                                        </button>
-                                                        <button className="w-6 h-6 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200">
-                                                            <Unlink className="w-3 h-3" />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            {/* Add more sample transactions here */}
-                                        </tbody>
-                                    </table>
+                                    <div className="flex items-center justify-center h-full text-gray-500">
+                                        <div className="text-center">
+                                            <FileText className="w-12 h-12 mx-auto mb-4" />
+                                            <p>No transactions available</p>
+                                            <p className="text-sm">
+                                                Upload a document to extract
+                                                transactions
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>

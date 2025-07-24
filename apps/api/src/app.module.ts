@@ -12,6 +12,7 @@ import { HmrcModule } from './modules/hmrc/hmrc.module';
 import { join } from 'path';
 import { ClientsModule } from './modules/clients/clients.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { UploadModule } from './modules/upload/upload.module';
 
 @Module({
     imports: [
@@ -43,6 +44,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
         RolesModule,
         ClientsModule,
         DocumentsModule,
+        UploadModule,
     ],
     controllers: [AppController],
     providers: [AppService],

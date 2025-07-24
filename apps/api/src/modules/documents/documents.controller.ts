@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
+
 import {
     Controller,
     Get,
@@ -102,7 +102,7 @@ export class DocumentsController {
         },
     })
     @UseInterceptors(FileInterceptor('file'))
-    async uploadDocument(
+    uploadDocument(
         @Request() req: { user: { userId: string } },
         @UploadedFile() file: UploadedFile,
         @Body(new ZodValidationPipe(uploadDocumentSchema))
@@ -121,7 +121,7 @@ export class DocumentsController {
             userId: req.user.userId,
             clientId: body.clientId,
             businessId: body.businessId,
-            file,
+            file: file.buffer.toString('base64'),
             documentType: body.documentType,
             folderId: body.folderId,
         });
@@ -320,6 +320,31 @@ export class DocumentsController {
         return this.documentsService.submitToHmrc(id, req.user.userId, body);
     }
 
+    @Get(':id/download-url')
+    @ApiOperation({ summary: 'Get presigned download URL for document' })
+    @ApiParam({ name: 'id', description: 'Document ID' })
+    async getDocumentDownloadUrl(
+        @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
+        @Query('expiresIn') expiresIn?: string,
+    ) {
+        return this.documentsService.getDocumentDownloadUrl(
+            id,
+            req.user.userId,
+            expiresIn ? parseInt(expiresIn) : 3600,
+        );
+    }
+
+    @Delete(':id')
+    @ApiOperation({ summary: 'Delete document and its S3 file' })
+    @ApiParam({ name: 'id', description: 'Document ID' })
+    async deleteDocument(
+        @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
+    ) {
+        return this.documentsService.deleteDocument(id, req.user.userId);
+    }
+
     @Get('hmrc/submissions')
     @ApiOperation({ summary: 'Get HMRC submissions' })
     @ApiQuery({ name: 'clientId', required: false })
@@ -330,6 +355,149 @@ export class DocumentsController {
         return this.documentsService.getHmrcSubmissions(
             req.user.userId,
             clientId,
+        );
+    }
+
+    @Post('transactions/bulk')
+    @ApiOperation({ summary: 'Create multiple transactions in bulk' })
+    async createBulkTransactions(
+        @Request() req: { user: { userId: string } },
+        @Body()
+        body: {
+            documentId: string;
+            transactions: Array<{
+                transactionDate: string;
+                description: string;
+                category: string;
+                amount: number;
+                currency?: string;
+                isAIGenerated?: boolean;
+                aiConfidence?: number;
+                notes?: string;
+            }>;
+        },
+    ) {
+        return this.documentsService.createBulkTransactions(
+            req.user.userId,
+            body.documentId,
+            body.transactions,
+        );
+    }
+
+    @Put('transactions/bulk')
+    @ApiOperation({ summary: 'Update multiple transactions in bulk' })
+    async updateBulkTransactions(
+        @Request() req: { user: { userId: string } },
+        @Body()
+        body: {
+            transactions: Array<{
+                id: string;
+                transactionDate?: string;
+                description?: string;
+                category?: string;
+                amount?: number;
+                currency?: string;
+                status?: string;
+                notes?: string;
+            }>;
+        },
+    ) {
+        return this.documentsService.updateBulkTransactions(
+            req.user.userId,
+            body.transactions,
+        );
+    }
+
+    @Delete('transactions/bulk')
+    @ApiOperation({ summary: 'Delete multiple transactions in bulk' })
+    async deleteBulkTransactions(
+        @Request() req: { user: { userId: string } },
+        @Body() body: { transactionIds: string[] },
+    ) {
+        return this.documentsService.deleteBulkTransactions(
+            req.user.userId,
+            body.transactionIds,
+        );
+    }
+
+    @Post(':id/process')
+    @ApiOperation({ summary: 'Trigger AI processing for a document' })
+    @ApiParam({ name: 'id', description: 'Document ID' })
+    async processDocument(
+        @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
+    ) {
+        return this.documentsService.processDocument(id, req.user.userId);
+    }
+
+    @Get(':id/processing-status')
+    @ApiOperation({ summary: 'Get document processing status' })
+    @ApiParam({ name: 'id', description: 'Document ID' })
+    async getDocumentProcessingStatus(
+        @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
+    ) {
+        return this.documentsService.getDocumentProcessingStatus(
+            id,
+            req.user.userId,
+        );
+    }
+
+    @Post(':id/approve-all')
+    @ApiOperation({ summary: 'Approve all transactions in a document' })
+    @ApiParam({ name: 'id', description: 'Document ID' })
+    async approveAllTransactions(
+        @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
+    ) {
+        return this.documentsService.approveAllTransactions(
+            id,
+            req.user.userId,
+        );
+    }
+
+    @Post(':id/export')
+    @ApiOperation({ summary: 'Export document transactions' })
+    @ApiParam({ name: 'id', description: 'Document ID' })
+    async exportDocumentTransactions(
+        @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
+        @Body()
+        body: {
+            format: 'csv' | 'excel' | 'pdf';
+            includeMetadata?: boolean;
+        },
+    ) {
+        return this.documentsService.exportDocumentTransactions(
+            id,
+            req.user.userId,
+            body.format,
+            // body.includeMetadata ?? false,
+        );
+    }
+
+    @Post('transactions/:id/approve')
+    @ApiOperation({ summary: 'Approve a single transaction' })
+    @ApiParam({ name: 'id', description: 'Transaction ID' })
+    async approveTransaction(
+        @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
+    ) {
+        return this.documentsService.approveTransaction(id, req.user.userId);
+    }
+
+    @Post('transactions/:id/reject')
+    @ApiOperation({ summary: 'Reject a single transaction' })
+    @ApiParam({ name: 'id', description: 'Transaction ID' })
+    async rejectTransaction(
+        @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
+        @Body() body: { reason?: string },
+    ) {
+        return this.documentsService.rejectTransaction(
+            id,
+            req.user.userId,
+            body.reason,
         );
     }
 }

@@ -8,7 +8,7 @@ import {
 import { Inject } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../../database/database.module';
 import { Database } from '@workspace/database';
-import { eq, and, desc, asc, like, sql } from 'drizzle-orm';
+import { eq, and, desc, asc, like, sql, inArray } from 'drizzle-orm';
 import {
     documentsTable,
     documentTransactionsTable,
@@ -19,25 +19,14 @@ import {
     InsertDocumentTransaction,
 } from '@workspace/database/dist/schema';
 import { HmrcService } from '../hmrc/hmrc.service';
+import { S3Service, UploadResult } from '../upload/s3.service';
 import { randomUUID } from 'crypto';
-import { createWriteStream, mkdirSync } from 'fs';
-import { extname } from 'path';
-
-// Type for uploaded file
-type UploadedFile = {
-    fieldname: string;
-    originalname: string;
-    encoding: string;
-    mimetype: string;
-    size: number;
-    buffer: Buffer;
-};
 
 export interface UploadDocumentDto {
     userId: string; // This will be a UUID string
     clientId: string; // This will be a UUID string
     businessId?: string;
-    file: UploadedFile;
+    file: string;
     documentType: string;
     folderId?: string;
 }
@@ -85,57 +74,79 @@ export class DocumentsService {
     constructor(
         @Inject(DATABASE_CONNECTION) private readonly db: Database,
         private readonly hmrcService: HmrcService,
+        private readonly s3Service: S3Service,
     ) {}
 
     async uploadDocument(dto: UploadDocumentDto): Promise<any> {
         const { userId, clientId, businessId, file, documentType, folderId } =
             dto;
 
-        // Generate unique filename
-        const fileId = randomUUID();
-        const fileExtension = extname(file.originalname);
-        const fileName = `${fileId}${fileExtension}`;
+        try {
+            // Upload file to S3
+            const s3Result: UploadResult = await this.s3Service.uploadFile(
+                Buffer.from(file, 'base64'),
+                `${userId}/${clientId}/${Date.now()}-${Math.random().toString(36).substring(7)}`,
+                'application/octet-stream',
+            );
 
-        // Create upload directory if it doesn't exist
-        const uploadDir = `uploads/documents/${userId}/${clientId}`;
-        mkdirSync(uploadDir, { recursive: true });
+            // Create document record in database
+            const documentId = randomUUID();
+            const [document] = await this.db
+                .insert(documentsTable)
+                .values({
+                    id: documentId,
+                    userId,
+                    clientId,
+                    businessId: businessId || null,
+                    fileName: s3Result.key,
+                    originalFileName: 'uploaded-file',
+                    fileSize: s3Result.size,
+                    fileType: 'unknown',
+                    mimeType: 'application/octet-stream',
+                    filePath: s3Result.url,
+                    documentType,
+                    status: 'uploaded',
+                    processingStatus: 'pending',
+                    uploadedAt: new Date(),
+                })
+                .returning();
 
-        const filePath = `${uploadDir}/${fileName}`;
+            // Start AI processing in background
+            await this.processDocumentWithAI(documentId);
 
-        // Save file to disk
-        const writeStream = createWriteStream(filePath);
-        writeStream.write(file.buffer);
-        writeStream.end();
-
-        // Create document record
-        const [document] = await this.db
-            .insert(documentsTable)
-            .values({
-                userId,
-                clientId,
-                businessId,
-                fileName,
-                originalFileName: file.originalname,
-                fileSize: file.size,
-                fileType: fileExtension.substring(1),
-                mimeType: file.mimetype,
-                filePath,
-                documentType,
-                status: 'uploaded',
-                processingStatus: 'pending',
-                uploadedAt: new Date(),
-            })
-            .returning();
-
-        // Assign to folder if specified
-        if (folderId) {
-            await this.assignDocumentToFolder(fileId, folderId);
+            return {
+                id: document.id,
+                originalFileName: document.originalFileName,
+                fileName: document.fileName,
+                filePath: document.filePath,
+                fileSize: document.fileSize,
+                mimeType: document.mimeType,
+                documentType: document.documentType,
+                status: document.status,
+                processingStatus: document.processingStatus,
+                uploadedAt: document.uploadedAt,
+                s3Key: s3Result.key,
+                s3Url: s3Result.url,
+                s3Size: s3Result.size,
+            };
+        } catch (error) {
+            throw new BadRequestException(
+                `Failed to upload document: ${error.message}`,
+            );
         }
+    }
 
-        // Start AI processing (simulated)
-        this.processDocumentWithAI(fileId);
-
-        return document;
+    async updateDocumentStatus(
+        documentId: string,
+        status: 'pending' | 'processing' | 'completed' | 'error',
+    ): Promise<void> {
+        await this.db
+            .update(documentsTable)
+            .set({
+                processingStatus: status,
+                updatedAt: new Date(),
+            })
+            .where(eq(documentsTable.id, documentId));
     }
 
     processDocumentWithAI(documentId: string): void {
@@ -341,7 +352,7 @@ export class DocumentsService {
     }
 
     async getDocumentById(documentId: string, userId: string): Promise<any> {
-        const [document] = await this.db
+        const document = await this.db
             .select()
             .from(documentsTable)
             .where(
@@ -349,13 +360,55 @@ export class DocumentsService {
                     eq(documentsTable.id, documentId),
                     eq(documentsTable.userId, userId),
                 ),
-            );
+            )
+            .limit(1);
 
-        if (!document) {
+        if (!document.length) {
             throw new NotFoundException('Document not found');
         }
 
-        return document;
+        return document[0];
+    }
+
+    async getDocumentDownloadUrl(
+        documentId: string,
+        userId: string,
+        expiresIn: number = 3600,
+    ): Promise<{ downloadUrl: string }> {
+        const document = await this.getDocumentById(documentId, userId);
+
+        if (!document.fileName) {
+            throw new NotFoundException('Document file not found');
+        }
+
+        // const presignedUrl = await this.s3Service.getPresignedUrl(
+        //     document.fileName,
+        //     expiresIn,
+        // );
+        console.log(expiresIn);
+
+        const test = '1111111111111111111';
+
+        return { downloadUrl: test };
+    }
+
+    async deleteDocument(documentId: string, userId: string): Promise<void> {
+        const document = await this.getDocumentById(documentId, userId);
+
+        if (document.fileName) {
+            // Delete from S3
+            await this.s3Service.deleteFile(document.fileName);
+        }
+
+        // Delete from database
+        await this.db
+            .delete(documentsTable)
+            .where(
+                and(
+                    eq(documentsTable.id, documentId),
+                    eq(documentsTable.userId, userId),
+                ),
+            );
     }
 
     async getDocumentTransactions(
@@ -580,6 +633,253 @@ export class DocumentsService {
             .from(hmrcSubmissionsTable)
             .where(and(...conditions))
             .orderBy(desc(hmrcSubmissionsTable.createdAt));
+    }
+
+    async createBulkTransactions(
+        userId: string,
+        documentId: string,
+        transactions: Array<{
+            transactionDate: string;
+            description: string;
+            category: string;
+            amount: number;
+            currency?: string;
+            isAIGenerated?: boolean;
+            aiConfidence?: number;
+            notes?: string;
+        }>,
+    ): Promise<any[]> {
+        const document = await this.getDocumentById(documentId, userId);
+        const createdTransactions = [];
+
+        for (const transaction of transactions) {
+            const transactionData = {
+                documentId,
+                userId: document.userId,
+                clientId: document.clientId,
+                businessId: document.businessId,
+                transactionDate: transaction.transactionDate,
+                description: transaction.description,
+                category: transaction.category,
+                amount: transaction.amount.toString(),
+                currency: transaction.currency || 'GBP',
+                status: 'pending',
+                isAIGenerated: transaction.isAIGenerated || false,
+                aiConfidence: (transaction.aiConfidence || 0.0).toString(),
+                notes: transaction.notes,
+            };
+
+            const [createdTransaction] = await this.db
+                .insert(documentTransactionsTable)
+                .values(transactionData)
+                .returning();
+
+            createdTransactions.push(createdTransaction);
+        }
+
+        return createdTransactions;
+    }
+
+    async updateBulkTransactions(
+        userId: string,
+        transactions: Array<{
+            id: string;
+            transactionDate?: string;
+            description?: string;
+            category?: string;
+            amount?: number;
+            currency?: string;
+            status?: string;
+            notes?: string;
+        }>,
+    ): Promise<any[]> {
+        const updatedTransactions = [];
+
+        for (const transaction of transactions) {
+            const updateData: any = {
+                updatedAt: new Date(),
+            };
+
+            if (transaction.transactionDate)
+                updateData.transactionDate = new Date(
+                    transaction.transactionDate,
+                );
+            if (transaction.description)
+                updateData.description = transaction.description;
+            if (transaction.category)
+                updateData.category = transaction.category;
+            if (transaction.amount !== undefined)
+                updateData.amount = transaction.amount;
+            if (transaction.currency)
+                updateData.currency = transaction.currency;
+            if (transaction.status) updateData.status = transaction.status;
+            if (transaction.notes) updateData.notes = transaction.notes;
+
+            const [updatedTransaction] = await this.db
+                .update(documentTransactionsTable)
+                .set(updateData)
+                .where(eq(documentTransactionsTable.id, transaction.id))
+                .returning();
+
+            if (updatedTransaction) {
+                updatedTransactions.push(updatedTransaction);
+            }
+        }
+
+        return updatedTransactions;
+    }
+
+    async deleteBulkTransactions(
+        userId: string,
+        transactionIds: string[],
+    ): Promise<void> {
+        await this.db
+            .delete(documentTransactionsTable)
+            .where(
+                and(
+                    inArray(documentTransactionsTable.id, transactionIds),
+                    eq(documentTransactionsTable.userId, userId),
+                ),
+            );
+    }
+
+    async processDocument(documentId: string, userId: string): Promise<any> {
+        await this.getDocumentById(documentId, userId);
+
+        // Update processing status
+        await this.db
+            .update(documentsTable)
+            .set({
+                processingStatus: 'processing',
+                updatedAt: new Date(),
+            })
+            .where(eq(documentsTable.id, documentId));
+
+        // Start AI processing in background
+        this.processDocumentWithAI(documentId);
+
+        return {
+            message: 'Document processing started',
+            documentId,
+            status: 'processing',
+        };
+    }
+
+    async getDocumentProcessingStatus(
+        documentId: string,
+        userId: string,
+    ): Promise<any> {
+        const document = await this.getDocumentById(documentId, userId);
+
+        return {
+            documentId,
+            processingStatus: document.processingStatus,
+            aiExtractedTransactions: document.aiExtractedTransactions,
+            aiAccuracy: document.aiAccuracy,
+            processedAt: document.processedAt,
+            uploadedAt: document.uploadedAt,
+        };
+    }
+
+    async approveAllTransactions(
+        documentId: string,
+        userId: string,
+    ): Promise<any> {
+        await this.getDocumentById(documentId, userId);
+
+        const result = await this.db
+            .update(documentTransactionsTable)
+            .set({
+                status: 'approved',
+                updatedAt: new Date(),
+            })
+            .where(
+                and(
+                    eq(documentTransactionsTable.documentId, documentId),
+                    eq(documentTransactionsTable.userId, userId),
+                ),
+            )
+            .returning();
+
+        return {
+            message: `${result.length} transactions approved`,
+            approvedCount: result.length,
+        };
+    }
+
+    async exportDocumentTransactions(
+        documentId: string,
+        userId: string,
+        format: 'csv' | 'excel' | 'pdf' = 'csv',
+    ): Promise<any> {
+        const document = await this.getDocumentById(documentId, userId);
+        const transactions = await this.getDocumentTransactions(
+            documentId,
+            userId,
+        );
+
+        // For now, return the data in the requested format
+        // In a real implementation, you would generate actual files
+        return {
+            format,
+            documentId,
+            documentName: document.originalFileName,
+            transactionCount: transactions.length,
+            data: transactions,
+            downloadUrl: `/api/documents/${documentId}/export/${format}`,
+        };
+    }
+
+    async approveTransaction(
+        transactionId: string,
+        userId: string,
+    ): Promise<any> {
+        const [transaction] = await this.db
+            .update(documentTransactionsTable)
+            .set({
+                status: 'approved',
+                updatedAt: new Date(),
+            })
+            .where(
+                and(
+                    eq(documentTransactionsTable.id, transactionId),
+                    eq(documentTransactionsTable.userId, userId),
+                ),
+            )
+            .returning();
+
+        if (!transaction) {
+            throw new NotFoundException('Transaction not found');
+        }
+
+        return transaction;
+    }
+
+    async rejectTransaction(
+        transactionId: string,
+        userId: string,
+        reason?: string,
+    ): Promise<any> {
+        const [transaction] = await this.db
+            .update(documentTransactionsTable)
+            .set({
+                status: 'rejected',
+                notes: reason ? `Rejected: ${reason}` : 'Transaction rejected',
+                updatedAt: new Date(),
+            })
+            .where(
+                and(
+                    eq(documentTransactionsTable.id, transactionId),
+                    eq(documentTransactionsTable.userId, userId),
+                ),
+            )
+            .returning();
+
+        if (!transaction) {
+            throw new NotFoundException('Transaction not found');
+        }
+
+        return transaction;
     }
 
     async getDocumentStats(userId: string, clientId?: string): Promise<any> {

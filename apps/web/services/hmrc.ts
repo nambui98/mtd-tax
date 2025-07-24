@@ -1,6 +1,7 @@
 import { Env } from '@/lib/env';
 import { api } from './api';
 import { AxiosResponse } from 'axios';
+import { TypeOfBusiness } from '@/types/document';
 
 export type InvitationResponse = {
     invitations: Array<{
@@ -23,7 +24,7 @@ export type InvitationResponse = {
 export type Business = {
     businessId: string;
     businessName: string;
-    businessType: string;
+    businessType: TypeOfBusiness;
     tradingName?: string;
     address: {
         line1: string;
@@ -76,7 +77,7 @@ export type Link = {
 };
 
 export type ListOfBusiness = {
-    typeOfBusiness: string;
+    typeOfBusiness: TypeOfBusiness;
     businessId: string;
     tradingName: string;
     links: Link[];
@@ -282,24 +283,5 @@ export const hmrcService = {
             `/hmrc/clients/${clientId}/businesses/${businessId}/comprehensive?nino=${nino}&taxYear=${taxYear}&typeOfBusiness=${typeOfBusiness}`,
         );
         return response.data.data;
-    },
-
-    getHmrcCategories: async (): Promise<{
-        businessCategories: Array<{
-            code: string;
-            name: string;
-            description: string;
-            type: 'income' | 'expense' | 'both';
-        }>;
-        transactionCategories: Array<{
-            code: string;
-            name: string;
-            description: string;
-            parentCategory?: string;
-            isStandard: boolean;
-        }>;
-    }> => {
-        const response = await api.get('/hmrc/categories');
-        return response.data;
     },
 };

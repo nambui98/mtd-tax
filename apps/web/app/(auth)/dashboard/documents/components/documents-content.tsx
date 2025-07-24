@@ -116,13 +116,6 @@ export default function DocumentsContent() {
         enabled: true,
     });
 
-    // Fetch HMRC categories
-    const { data: categoriesData } = useQuery({
-        queryKey: ['hmrc-categories'],
-        queryFn: hmrcService.getHmrcCategories,
-        enabled: true,
-    });
-
     // Upload mutation
     const uploadMutation = useMutation({
         mutationFn: async (data: {

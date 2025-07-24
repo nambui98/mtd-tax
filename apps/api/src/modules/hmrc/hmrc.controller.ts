@@ -755,14 +755,6 @@ export class HmrcController {
         );
     }
 
-    @Get('categories')
-    @UseGuards(JwtAuthGuard)
-    @ApiBearerAuth()
-    @ApiOperation({ summary: 'Get HMRC business and transaction categories' })
-    async getHmrcCategories(@Request() req: { user: { userId: string } }) {
-        return this.hmrcService.getHmrcCategories(req.user.userId);
-    }
-
     private getUserArn(): Promise<{ agentReferenceNumber?: string } | null> {
         // This would typically query your users table to get the ARN
         // For now, return null to require ARN as parameter

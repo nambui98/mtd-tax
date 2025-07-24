@@ -8,12 +8,19 @@ import {
     date,
     jsonb,
     uuid,
+    pgEnum,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { usersTable, clientsTable } from './index';
 import { z } from 'zod';
 import { createInsertSchema } from 'drizzle-zod';
 
+export const typeOfBusinessEnum = pgEnum('type_of_business', [
+    'self-employment',
+    'uk-property',
+    'foreign-property',
+    'property-unspecified',
+]);
 // Documents table
 export const documentsTable = pgTable('documents', {
     id: uuid('id').primaryKey().defaultRandom(),

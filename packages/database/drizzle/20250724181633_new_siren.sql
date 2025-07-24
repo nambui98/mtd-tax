@@ -1,0 +1,1 @@
+CREATE TYPE "public"."type_of_business" AS ENUM('self-employment', 'uk-property', 'foreign-property', 'property-unspecified');

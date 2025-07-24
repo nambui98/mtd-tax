@@ -71,7 +71,7 @@ type Props = {
 };
 
 export default function ClientContent({ clientId }: Props) {
-    const [activeTab, setActiveTab] = useState('financials');
+    const [activeTab, setActiveTab] = useState('documents');
     const [activeBusiness, setActiveBusiness] = useState('');
 
     const { data: client, isLoading: isLoadingClient } = useQuery({
@@ -91,6 +91,22 @@ export default function ClientContent({ clientId }: Props) {
                 ),
             enabled: !!client?.nino && !!client?.id,
         });
+
+    const {
+        data: clientBusinessDetails,
+        isLoading: isLoadingClientBusinessDetails,
+    } = useQuery({
+        queryKey: ['client-business-details', client?.utr],
+        queryFn: () =>
+            hmrcService.getClientBusinessDetails(
+                clientId,
+                activeBusiness,
+                client?.nino as string,
+            ),
+        enabled: !!client?.nino && !!client?.id && !!activeBusiness,
+    });
+    console.log(clientBusinessDetails);
+    console.log(hmrcBusinesses);
 
     useEffect(() => {
         if (
@@ -135,7 +151,16 @@ export default function ClientContent({ clientId }: Props) {
                 businesses={hmrcBusinesses?.businesses.listOfBusinesses || []}
             />
             {activeTab === 'documents' && (
-                <ClientDocuments clientId={clientId} />
+                <ClientDocuments
+                    clientId={clientId}
+                    businessId={activeBusiness}
+                    typeOfBusiness={
+                        hmrcBusinesses?.businesses.listOfBusinesses.find(
+                            (business) =>
+                                business.businessId === activeBusiness,
+                        )?.typeOfBusiness || undefined
+                    }
+                />
             )}
 
             {/* Content based on active tab */}

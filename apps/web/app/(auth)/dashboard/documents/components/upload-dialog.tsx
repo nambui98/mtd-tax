@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -45,6 +46,10 @@ import {
     Minus,
     Plus as PlusIcon,
     Upload,
+    Loader2,
+    AlertCircle,
+    CheckCircle,
+    AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@workspace/ui/components/button';
 import { Input } from '@workspace/ui/components/input';
@@ -56,8 +61,16 @@ import {
     SelectValue,
 } from '@workspace/ui/components/select';
 import { Badge } from '@workspace/ui/components/badge';
-import { hmrcService } from '@/services/hmrc';
-import { useQuery } from '@tanstack/react-query';
+import { Progress } from '@workspace/ui/components/progress';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { documentsService } from '@/services/documents';
+import { uploadService, type FileValidationResult } from '@/services/upload';
+import { toast } from 'sonner';
+import { TypeOfBusiness } from '@/types/document';
+import {
+    MAPPING_HMRC_TO_TRANSACTION_CATEGORIES,
+    TRANSACTION_CATEGORIES_FHL,
+} from '@/constants/transaction';
 
 type Props = {
     isOpen?: boolean;
@@ -66,22 +79,319 @@ type Props = {
     documentType?: 'pdf' | 'image' | 'excel' | 'default';
     children?: React.ReactNode;
     onFileUpload?: (file: File) => void;
-};
-
-type HmrcCategory = {
-    code: string;
-    name: string;
-    description: string;
-    type: 'income' | 'expense' | 'both';
+    clientId?: string;
+    businessId?: string;
+    typeOfBusiness?: TypeOfBusiness;
 };
 
 type TransactionCategory = {
-    code: string;
-    name: string;
-    description: string;
-    parentCategory?: string;
-    isStandard: boolean;
+    label: string;
+    value: string;
+    hmrcField: string;
 };
+
+type Transaction = {
+    id: string;
+    transactionDate: string;
+    description: string;
+    category: string;
+    amount: number;
+    status: string;
+    isAIGenerated: boolean;
+    aiConfidence?: number;
+    currency?: string;
+    notes?: string;
+};
+
+type UploadStatus =
+    | 'idle'
+    | 'validating'
+    | 'uploading'
+    | 'processing'
+    | 'completed'
+    | 'error';
+
+type AddTransactionFormProps = {
+    onSave: (transaction: any) => void;
+    onCancel: () => void;
+    transactionCategories: TransactionCategory[];
+    clientId?: string;
+    businessId?: string;
+    documentId?: string;
+};
+
+function AddTransactionForm({
+    onSave,
+    onCancel,
+    transactionCategories,
+    clientId,
+    businessId,
+    documentId,
+}: AddTransactionFormProps) {
+    const [formData, setFormData] = useState({
+        transactionDate: new Date().toISOString().split('T')[0],
+        description: '',
+        category: '',
+        amount: '',
+    });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.description || !formData.category || !formData.amount) {
+            toast.error('Please fill in all required fields');
+            return;
+        }
+
+        const transaction = {
+            documentId,
+            clientId,
+            businessId,
+            transactionDate: formData.transactionDate,
+            description: formData.description,
+            category: formData.category,
+            amount: parseFloat(formData.amount),
+            currency: 'GBP',
+            isAIGenerated: false,
+        };
+
+        onSave(transaction);
+    };
+
+    return (
+        <tr className="bg-gray-50 border-b border-gray-200">
+            <td className="p-3 text-sm align-middle">
+                <Input
+                    type="date"
+                    className="w-full text-sm"
+                    value={formData.transactionDate}
+                    onChange={(e) =>
+                        setFormData({
+                            ...formData,
+                            transactionDate: e.target.value,
+                        })
+                    }
+                />
+            </td>
+            <td className="p-3 text-sm align-middle">
+                <Input
+                    type="text"
+                    placeholder="Enter description"
+                    className="w-full text-sm"
+                    value={formData.description}
+                    onChange={(e) =>
+                        setFormData({
+                            ...formData,
+                            description: e.target.value,
+                        })
+                    }
+                />
+            </td>
+            <td className="p-3 text-sm align-middle">
+                <Select
+                    value={formData.category}
+                    onValueChange={(value) =>
+                        setFormData({ ...formData, category: value })
+                    }
+                >
+                    <SelectTrigger className="w-full text-sm">
+                        <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {transactionCategories.map(
+                            (category: TransactionCategory) => (
+                                <SelectItem
+                                    key={category.value}
+                                    value={category.value}
+                                >
+                                    {category.label}
+                                </SelectItem>
+                            ),
+                        )}
+                    </SelectContent>
+                </Select>
+            </td>
+            <td className="p-3 text-sm align-middle">
+                <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                        £
+                    </span>
+                    <Input
+                        type="number"
+                        placeholder="0.00"
+                        step="0.01"
+                        className="w-full text-sm pl-6"
+                        value={formData.amount}
+                        onChange={(e) =>
+                            setFormData({ ...formData, amount: e.target.value })
+                        }
+                    />
+                </div>
+            </td>
+            <td className="p-3 text-sm align-middle text-center">
+                <span className="inline-flex items-center text-xs font-medium text-blue-600">
+                    New Transaction
+                </span>
+            </td>
+            <td className="p-3 text-sm align-middle text-center">
+                <div className="flex justify-center gap-1.5">
+                    <Button
+                        size="sm"
+                        className="w-8 h-8 p-0 bg-blue-600 hover:bg-blue-700"
+                        onClick={handleSubmit}
+                    >
+                        <Check className="w-3 h-3" />
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-8 h-8 p-0"
+                        onClick={onCancel}
+                    >
+                        <X className="w-3 h-3" />
+                    </Button>
+                </div>
+            </td>
+        </tr>
+    );
+}
+
+type EditTransactionFormProps = {
+    transaction: Transaction;
+    onSave: (id: string, transaction: any) => void;
+    onCancel: () => void;
+    transactionCategories: TransactionCategory[];
+};
+
+function EditTransactionForm({
+    transaction,
+    onSave,
+    onCancel,
+    transactionCategories,
+}: EditTransactionFormProps) {
+    const [formData, setFormData] = useState({
+        transactionDate: transaction.transactionDate,
+        description: transaction.description,
+        category: transaction.category,
+        amount: transaction.amount.toString(),
+    });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!formData.description || !formData.category || !formData.amount) {
+            toast.error('Please fill in all required fields');
+            return;
+        }
+
+        const updatedTransaction = {
+            transactionDate: formData.transactionDate,
+            description: formData.description,
+            category: formData.category,
+            amount: parseFloat(formData.amount),
+            currency: transaction.currency || 'GBP',
+            isAIGenerated: transaction.isAIGenerated || false,
+            notes: transaction.notes,
+        };
+
+        onSave(transaction.id, updatedTransaction);
+    };
+
+    return (
+        <tr className="bg-blue-50 border-b border-gray-200">
+            <td className="p-3 text-sm align-middle">
+                <Input
+                    type="date"
+                    className="w-full text-sm"
+                    value={formData.transactionDate}
+                    onChange={(e) =>
+                        setFormData({
+                            ...formData,
+                            transactionDate: e.target.value,
+                        })
+                    }
+                />
+            </td>
+            <td className="p-3 text-sm align-middle">
+                <Input
+                    type="text"
+                    placeholder="Enter description"
+                    className="w-full text-sm"
+                    value={formData.description}
+                    onChange={(e) =>
+                        setFormData({
+                            ...formData,
+                            description: e.target.value,
+                        })
+                    }
+                />
+            </td>
+            <td className="p-3 text-sm align-middle">
+                <Select
+                    value={formData.category}
+                    onValueChange={(value) =>
+                        setFormData({ ...formData, category: value })
+                    }
+                >
+                    <SelectTrigger className="w-full text-sm">
+                        <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {transactionCategories.map(
+                            (category: TransactionCategory) => (
+                                <SelectItem
+                                    key={category.value}
+                                    value={category.value}
+                                >
+                                    {category.label}
+                                </SelectItem>
+                            ),
+                        )}
+                    </SelectContent>
+                </Select>
+            </td>
+            <td className="p-3 text-sm align-middle">
+                <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                        £
+                    </span>
+                    <Input
+                        type="number"
+                        placeholder="0.00"
+                        step="0.01"
+                        className="w-full text-sm pl-6"
+                        value={formData.amount}
+                        onChange={(e) =>
+                            setFormData({ ...formData, amount: e.target.value })
+                        }
+                    />
+                </div>
+            </td>
+            <td className="p-3 text-sm align-middle text-center">
+                <span className="inline-flex items-center text-xs font-medium text-blue-600">
+                    Editing
+                </span>
+            </td>
+            <td className="p-3 text-sm align-middle text-center">
+                <div className="flex justify-center gap-1.5">
+                    <Button
+                        size="sm"
+                        className="w-8 h-8 p-0 bg-blue-600 hover:bg-blue-700"
+                        onClick={handleSubmit}
+                    >
+                        <Check className="w-3 h-3" />
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-8 h-8 p-0"
+                        onClick={onCancel}
+                    >
+                        <X className="w-3 h-3" />
+                    </Button>
+                </div>
+            </td>
+        </tr>
+    );
+}
 
 export default function UploadDialog({
     isOpen,
@@ -90,6 +400,9 @@ export default function UploadDialog({
     documentType = 'default',
     children,
     onFileUpload,
+    clientId,
+    businessId,
+    typeOfBusiness,
 }: Props) {
     const [isOpenDialog, setIsOpenDialog] = useState(isOpen || false);
     const [currentZoom, setCurrentZoom] = useState(1);
@@ -98,79 +411,175 @@ export default function UploadDialog({
     const [showAddForm, setShowAddForm] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+    // const [uploadedDocument, setUploadedDocument] = useState<any>(null);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [tempTransactions, setTempTransactions] = useState<Transaction[]>([]);
+    const [editingTransaction, setEditingTransaction] = useState<string | null>(
+        null,
+    );
+    const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [validationResult, setValidationResult] =
+        useState<FileValidationResult | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [transactions, setTransactions] = useState([
-        {
-            id: 1,
-            date: 'Apr 15, 2026',
-            description: 'Client Payment - Project Alpha',
-            category: 'SALES_INCOME',
-            amount: 5000.0,
-            status: 'verified',
-            isAIGenerated: true,
-        },
-        {
-            id: 2,
-            date: 'Apr 14, 2026',
-            description: 'Office Supplies',
-            category: 'OFFICE_EXPENSES',
-            amount: -250.0,
-            status: 'verified',
-            isAIGenerated: false,
-        },
-        {
-            id: 3,
-            date: 'Apr 10, 2026',
-            description: 'Software Subscription',
-            category: 'SOFTWARE_SUBSCRIPTIONS',
-            amount: -49.99,
-            status: 'verified',
-            isAIGenerated: false,
-        },
-        {
-            id: 4,
-            date: 'Apr 8, 2026',
-            description: 'Client Payment - Project Beta',
-            category: 'SALES_INCOME',
-            amount: 3200.0,
-            status: 'needs_review',
-            isAIGenerated: false,
-        },
-        {
-            id: 5,
-            date: 'Apr 5, 2026',
-            description: 'Travel Expenses',
-            category: 'TRAVEL_TRANSPORT',
-            amount: -180.5,
-            status: 'verified',
-            isAIGenerated: false,
-        },
-        {
-            id: 6,
-            date: 'Apr 2, 2026',
-            description: 'Internet & Phone',
-            category: 'UTILITIES',
-            amount: -85.0,
-            status: 'needs_category',
-            isAIGenerated: false,
-        },
-    ]);
 
-    // Fetch HMRC categories
-    const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
-        queryKey: ['hmrc-categories'],
-        queryFn: hmrcService.getHmrcCategories,
-        enabled: isOpen,
+    const transactionCategories = useMemo(
+        () =>
+            typeOfBusiness
+                ? MAPPING_HMRC_TO_TRANSACTION_CATEGORIES[
+                      typeOfBusiness as keyof typeof MAPPING_HMRC_TO_TRANSACTION_CATEGORIES
+                  ]
+                : [],
+        [typeOfBusiness],
+    );
+
+    // Upload document mutation
+    const {
+        mutateAsync: uploadMutation,
+        isPending: isUploading,
+        isSuccess: isUploadSuccess,
+        isError: isUploadError,
+        data: uploadData,
+    } = useMutation({
+        mutationFn: async (file: File) => {
+            if (!clientId) throw new Error('Client ID is required');
+            setUploadStatus('uploading');
+            return uploadService.uploadFile(file, (progress) => {
+                setUploadProgress(progress);
+            });
+        },
+        onSuccess: () => {
+            // setUploadStatus('processing');
+            setUploadStatus('completed');
+            setUploadProgress(100);
+            toast.success('Document uploaded successfully');
+            // Start processing
+            // processDocument(data.documentId);
+        },
+        onError: (error: any) => {
+            setUploadStatus('error');
+            toast.error(`Upload failed: ${error.message}`);
+        },
     });
 
-    const transactionCategories = categoriesData?.transactionCategories || [];
-    const businessCategories = categoriesData?.businessCategories || [];
+    // Process document mutation
+    const processMutation = useMutation({
+        mutationFn: documentsService.processDocument,
+        onSuccess: (data) => {
+            toast.success('Document processing started');
+            // Poll for processing status
+            pollProcessingStatus(data.documentId);
+        },
+        onError: (error: any) => {
+            toast.error(`Processing failed: ${error.message}`);
+        },
+    });
 
-    const handleFileUpload = (file: File | undefined) => {
+    // Get document transactions
+    // const { data: documentTransactions, refetch: refetchTransactions } =
+    //     useQuery({
+    //         queryKey: ['document-transactions', uploadedDocument?.id],
+    //         queryFn: () =>
+    //             documentsService.getDocumentTransactions(uploadedDocument!.id),
+    //         enabled: !!uploadedDocument?.id,
+    //     });
+
+    // Bulk create transactions mutation
+    const createBulkTransactionsMutation = useMutation({
+        mutationFn: ({
+            documentId,
+            transactions,
+        }: {
+            documentId: string;
+            transactions: any[];
+        }) => documentsService.createBulkTransactions(documentId, transactions),
+        onSuccess: () => {
+            toast.success('Transactions created successfully');
+            // refetchTransactions();
+        },
+        onError: (error: any) => {
+            toast.error(`Failed to create transactions: ${error.message}`);
+        },
+    });
+
+    // Approve all transactions mutation
+    const approveAllMutation = useMutation({
+        mutationFn: documentsService.approveAllTransactions,
+        onSuccess: (data) => {
+            toast.success(`${data.approvedCount} transactions approved`);
+            // refetchTransactions();
+        },
+        onError: (error: any) => {
+            toast.error(`Failed to approve transactions: ${error.message}`);
+        },
+    });
+
+    // Export transactions mutation
+    const exportMutation = useMutation({
+        mutationFn: ({
+            documentId,
+            format,
+        }: {
+            documentId: string;
+            format: 'csv' | 'excel' | 'pdf';
+        }) => documentsService.exportDocumentTransactions(documentId, format),
+        onSuccess: (data) => {
+            toast.success('Export completed');
+            // In a real app, you would trigger a download
+            console.log('Export data:', data);
+        },
+        onError: (error: any) => {
+            toast.error(`Export failed: ${error.message}`);
+        },
+    });
+
+    const handleFileUpload = async (file: File | undefined) => {
         if (file) {
             setUploadedFile(file);
-            onFileUpload?.(file);
+            setUploadStatus('idle');
+            setUploadProgress(0);
+            setValidationResult(null);
+            debugger;
+            try {
+                await uploadMutation(file);
+            } catch (error) {
+                console.error('Upload error:', error);
+            }
         }
+    };
+
+    const processDocument = (documentId: string) => {
+        processMutation.mutate(documentId);
+    };
+
+    const pollProcessingStatus = (documentId: string) => {
+        const interval = setInterval(async () => {
+            try {
+                const status =
+                    await documentsService.getDocumentProcessingStatus(
+                        documentId,
+                    );
+                if (status.processingStatus === 'completed') {
+                    setUploadStatus('completed');
+                    clearInterval(interval);
+                    // refetchTransactions();
+                    toast.success('Document processing completed');
+                } else if (status.processingStatus === 'error') {
+                    setUploadStatus('error');
+                    clearInterval(interval);
+                    toast.error('Document processing failed');
+                }
+            } catch (error) {
+                clearInterval(interval);
+                setUploadStatus('error');
+            }
+        }, 2000);
+
+        // Clear interval after 5 minutes
+        setTimeout(() => {
+            clearInterval(interval);
+            setUploadStatus('error');
+        }, 300000);
     };
 
     const handleDragOver = (e: React.DragEvent) => {
@@ -204,6 +613,110 @@ export default function UploadDialog({
         fileInputRef.current?.click();
     };
 
+    const handleApproveAll = async () => {
+        // if (uploadData?.s3Url) {
+        //     approveAllMutation.mutate(uploadData.s3Url);
+        // }
+        if (tempTransactions.length === 0) {
+            toast.error('No temporary transactions to approve');
+            return;
+        }
+
+        try {
+            // Convert temp transactions to regular transactions format
+            const transactionsToSave = tempTransactions.map((temp) => ({
+                transactionDate: temp.transactionDate,
+                description: temp.description,
+                category: temp.category,
+                amount: temp.amount,
+                currency: temp.currency || 'GBP',
+                isAIGenerated: temp.isAIGenerated || false,
+                aiConfidence: temp.aiConfidence || 0,
+                notes: temp.notes,
+            }));
+
+            // Save to database
+            await documentsService.createBulkTransactions(
+                uploadData?.documentId || '',
+                transactionsToSave,
+            );
+
+            // Clear temp transactions
+            setTempTransactions([]);
+            toast.success(
+                `${transactionsToSave.length} temporary transactions approved and saved`,
+            );
+        } catch (error: any) {
+            toast.error(
+                `Failed to approve temporary transactions: ${error.message}`,
+            );
+        }
+    };
+
+    const handleEditTransaction = (transactionId: string) => {
+        setEditingTransaction(transactionId);
+    };
+
+    const handleUpdateTransaction = (id: string, updatedTransaction: any) => {
+        setTempTransactions((prev) =>
+            prev.map((transaction) =>
+                transaction.id === id
+                    ? {
+                          ...transaction,
+                          ...updatedTransaction,
+                      }
+                    : transaction,
+            ),
+        );
+        setEditingTransaction(null);
+        toast.success('Transaction updated successfully');
+    };
+
+    const handleDeleteTransaction = (transactionId: string) => {
+        setTempTransactions((prev) =>
+            prev.filter((transaction) => transaction.id !== transactionId),
+        );
+        toast.success('Transaction deleted successfully');
+    };
+
+    const handleCancelEdit = () => {
+        setEditingTransaction(null);
+    };
+
+    const handleAddTransaction = async (transaction: any) => {
+        debugger;
+        if (!uploadData?.s3Url) {
+            toast.error('No document uploaded');
+            return;
+        }
+
+        // Add to local temp transactions
+        const newTempTransaction: Transaction = {
+            id: `temp-${Date.now()}-${Math.random()}`,
+            transactionDate: transaction.transactionDate,
+            description: transaction.description,
+            category: transaction.category,
+            amount: transaction.amount,
+            status: 'temp_pending',
+            isAIGenerated: false,
+            currency: transaction.currency || 'GBP',
+            notes: transaction.notes,
+        };
+
+        setTempTransactions((prev) => [...prev, newTempTransaction]);
+        toast.success('Transaction added to temporary storage');
+        setShowAddForm(false);
+    };
+
+    const handleExport = () => {
+        if (uploadData?.s3Url) {
+            exportMutation.mutate({
+                documentId: uploadData.documentId,
+                format: 'csv',
+            });
+        }
+    };
+
     const getDocumentIcon = () => {
         switch (documentType) {
             case 'pdf':
@@ -219,7 +732,7 @@ export default function UploadDialog({
 
     const getCategoryBadge = (categoryCode: string) => {
         const category = transactionCategories.find(
-            (cat) => cat.code === categoryCode,
+            (cat: TransactionCategory) => cat.value === categoryCode,
         );
         if (!category) {
             return (
@@ -230,25 +743,220 @@ export default function UploadDialog({
         }
 
         const categoryMap: Record<string, { className: string }> = {
-            // Income categories
+            // Self-Employment Income Categories
+            turnover: { className: 'bg-purple-100 text-purple-800' },
+            otherIncome: { className: 'bg-purple-100 text-purple-800' },
+            taxTakenOffTradingIncome: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+
+            // Self-Employment Expense Categories
+            costOfGoods: { className: 'bg-red-100 text-red-800' },
+            paymentsToSubcontractors: { className: 'bg-red-100 text-red-800' },
+            wagesAndStaffCosts: { className: 'bg-red-100 text-red-800' },
+            carVanTravelExpenses: { className: 'bg-red-100 text-red-800' },
+            premisesRunningCosts: { className: 'bg-red-100 text-red-800' },
+            maintenanceCosts: { className: 'bg-red-100 text-red-800' },
+            adminCosts: { className: 'bg-red-100 text-red-800' },
+            businessEntertainmentCosts: {
+                className: 'bg-red-100 text-red-800',
+            },
+            advertisingCosts: { className: 'bg-red-100 text-red-800' },
+            interestOnBankOtherLoans: { className: 'bg-red-100 text-red-800' },
+            financeCharges: { className: 'bg-red-100 text-red-800' },
+            irrecoverableDebts: { className: 'bg-red-100 text-red-800' },
+            professionalFees: { className: 'bg-red-100 text-red-800' },
+            depreciation: { className: 'bg-red-100 text-red-800' },
+            otherExpenses: { className: 'bg-red-100 text-red-800' },
+
+            // Self-Employment Disallowable Expense Categories
+            costOfGoodsDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            paymentsToSubcontractorsDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            wagesAndStaffCostsDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            carVanTravelExpensesDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            premisesRunningCostsDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            maintenanceCostsDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            adminCostsDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            businessEntertainmentCostsDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            advertisingCostsDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            interestOnBankOtherLoansDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            financeChargesDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            irrecoverableDebtsDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            professionalFeesDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            depreciationDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+            otherExpensesDisallowable: {
+                className: 'bg-orange-100 text-orange-800',
+            },
+
+            // UK FHL Income Categories
+            period_amount: { className: 'bg-purple-100 text-purple-800' },
+            tax_deducted: { className: 'bg-purple-100 text-purple-800' },
+            rent_a_room_rents_received: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+
+            // UK FHL Expense Categories
+            premises_running_costs: { className: 'bg-red-100 text-red-800' },
+            repairs_and_maintenance: { className: 'bg-red-100 text-red-800' },
+            financial_costs: { className: 'bg-red-100 text-red-800' },
+            professional_fees: { className: 'bg-red-100 text-red-800' },
+            cost_of_services: { className: 'bg-red-100 text-red-800' },
+            other: { className: 'bg-red-100 text-red-800' },
+            travel_costs: { className: 'bg-red-100 text-red-800' },
+            rent_a_room_amount_claimed: {
+                className: 'bg-red-100 text-red-800',
+            },
+
+            // UK Non-FHL Income Categories
+            premiums_of_lease_grant: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+            reverse_premiums: { className: 'bg-purple-100 text-purple-800' },
+            non_fhl_period_amount: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+            non_fhl_tax_deducted: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+            other_income: { className: 'bg-purple-100 text-purple-800' },
+            non_fhl_rent_a_room_rents_received: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+
+            // UK Non-FHL Expense Categories
+            non_fhl_premises_running_costs: {
+                className: 'bg-red-100 text-red-800',
+            },
+            non_fhl_repairs_and_maintenance: {
+                className: 'bg-red-100 text-red-800',
+            },
+            non_fhl_financial_costs: { className: 'bg-red-100 text-red-800' },
+            non_fhl_professional_fees: { className: 'bg-red-100 text-red-800' },
+            non_fhl_cost_of_services: { className: 'bg-red-100 text-red-800' },
+            non_fhl_other: { className: 'bg-red-100 text-red-800' },
+            residential_financial_cost: {
+                className: 'bg-red-100 text-red-800',
+            },
+            non_fhl_travel_costs: { className: 'bg-red-100 text-red-800' },
+            residential_financial_costs_carried_forward: {
+                className: 'bg-red-100 text-red-800',
+            },
+            non_fhl_rent_a_room_amount_claimed: {
+                className: 'bg-red-100 text-red-800',
+            },
+
+            // Foreign FHL Income Categories
+            foreign_fhl_rent_amount: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+
+            // Foreign FHL Expense Categories
+            foreign_fhl_premises_running_costs: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_fhl_repairs_and_maintenance: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_fhl_financial_costs: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_fhl_professional_fees: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_fhl_cost_of_services: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_fhl_travel_costs: { className: 'bg-red-100 text-red-800' },
+            foreign_fhl_other: { className: 'bg-red-100 text-red-800' },
+
+            // Foreign Non-FHL Income Categories
+            foreign_non_fhl_rent_amount: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+            foreign_tax_credit_relief: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+            foreign_premiums_of_lease_grant: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+            foreign_other_property_income: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+            foreign_tax_paid_or_deducted: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+            foreign_special_withholding_tax_or_uk_tax_paid: {
+                className: 'bg-purple-100 text-purple-800',
+            },
+
+            // Foreign Non-FHL Expense Categories
+            foreign_non_fhl_premises_running_costs: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_non_fhl_repairs_and_maintenance: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_non_fhl_financial_costs: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_non_fhl_professional_fees: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_non_fhl_cost_of_services: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_non_fhl_travel_costs: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_residential_financial_cost: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_brought_forward_residential_financial_cost: {
+                className: 'bg-red-100 text-red-800',
+            },
+            foreign_non_fhl_other: { className: 'bg-red-100 text-red-800' },
+
+            // Legacy categories (for backward compatibility)
             SALES_INCOME: { className: 'bg-purple-100 text-purple-800' },
-            CONSULTING_INCOME: { className: 'bg-purple-100 text-purple-800' },
+            CONSULTING_INCOME_LEGACY: {
+                className: 'bg-purple-100 text-purple-800',
+            },
             PROPERTY_INCOME: { className: 'bg-purple-100 text-purple-800' },
             INTEREST_INCOME: { className: 'bg-purple-100 text-purple-800' },
             OTHER_INCOME: { className: 'bg-purple-100 text-purple-800' },
-
-            // Expense categories
-            OFFICE_EXPENSES: { className: 'bg-red-100 text-red-800' },
             SOFTWARE_SUBSCRIPTIONS: { className: 'bg-red-100 text-red-800' },
             TRAVEL_TRANSPORT: { className: 'bg-red-100 text-red-800' },
-            UTILITIES: { className: 'bg-red-100 text-red-800' },
-            PROFESSIONAL_FEES: { className: 'bg-red-100 text-red-800' },
             MARKETING_ADVERTISING: { className: 'bg-red-100 text-red-800' },
-            INSURANCE: { className: 'bg-red-100 text-red-800' },
             MAINTENANCE_REPAIRS: { className: 'bg-red-100 text-red-800' },
             TRAINING_DEVELOPMENT: { className: 'bg-red-100 text-red-800' },
-            BANK_CHARGES: { className: 'bg-red-100 text-red-800' },
-            DEPRECIATION: { className: 'bg-red-100 text-red-800' },
             RENT: { className: 'bg-red-100 text-red-800' },
             SALARIES_WAGES: { className: 'bg-red-100 text-red-800' },
             PENSION_CONTRIBUTIONS: { className: 'bg-red-100 text-red-800' },
@@ -260,7 +968,7 @@ export default function UploadDialog({
         };
         return (
             <Badge className={`text-xs ${config.className}`}>
-                {category.name}
+                {category.label}
             </Badge>
         );
     };
@@ -275,6 +983,21 @@ export default function UploadDialog({
                 className: 'text-green-700',
                 dotColor: 'bg-green-500',
             },
+            approved: {
+                label: 'Approved',
+                className: 'text-green-700',
+                dotColor: 'bg-green-500',
+            },
+            pending: {
+                label: 'Pending',
+                className: 'text-yellow-700',
+                dotColor: 'bg-yellow-500',
+            },
+            temp_pending: {
+                label: 'Temp Pending',
+                className: 'text-blue-700',
+                dotColor: 'bg-blue-500',
+            },
             needs_review: {
                 label: 'Needs Review',
                 className: 'text-yellow-700',
@@ -282,6 +1005,11 @@ export default function UploadDialog({
             },
             needs_category: {
                 label: 'Needs Category',
+                className: 'text-red-700',
+                dotColor: 'bg-red-500',
+            },
+            rejected: {
+                label: 'Rejected',
                 className: 'text-red-700',
                 dotColor: 'bg-red-500',
             },
@@ -316,6 +1044,44 @@ export default function UploadDialog({
         );
     };
 
+    const getUploadStatusIcon = () => {
+        switch (uploadStatus) {
+            case 'validating':
+                return (
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                );
+            case 'uploading':
+                return <Upload className="w-6 h-6 text-blue-600" />;
+            case 'processing':
+                return (
+                    <Bot className="w-6 h-6 animate-pulse text-purple-600" />
+                );
+            case 'completed':
+                return <CheckCircle className="w-6 h-6 text-green-600" />;
+            case 'error':
+                return <AlertCircle className="w-6 h-6 text-red-600" />;
+            default:
+                return <CloudUpload className="w-6 h-6 text-gray-600" />;
+        }
+    };
+
+    const getUploadStatusText = () => {
+        switch (uploadStatus) {
+            case 'validating':
+                return 'Validating file...';
+            case 'uploading':
+                return `Uploading... ${uploadProgress}%`;
+            case 'processing':
+                return 'Processing with AI...';
+            case 'completed':
+                return 'Upload completed';
+            case 'error':
+                return 'Upload failed';
+            default:
+                return 'Ready to upload';
+        }
+    };
+
     const handleZoomIn = () => setCurrentZoom(Math.min(currentZoom + 0.1, 2));
     const handleZoomOut = () =>
         setCurrentZoom(Math.max(currentZoom - 0.1, 0.5));
@@ -324,10 +1090,23 @@ export default function UploadDialog({
     const handleNextPage = () =>
         setCurrentPage(Math.min(currentPage + 1, totalPages));
 
+    // Update transactions when document transactions or temp transactions change
+    // useEffect(() => {
+    //     const allTransactions = [
+    //         ...(documentTransactions || []),
+    //         ...tempTransactions.map((temp) => ({
+    //             ...temp,
+    //             isTemp: true,
+    //             status: 'temp_pending',
+    //         })),
+    //     ];
+    //     setTransactions(allTransactions);
+    // }, [documentTransactions, tempTransactions]);
+
     return (
         <Dialog open={isOpenDialog} onOpenChange={setIsOpenDialog}>
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className="max-w-7xl md:max-w-7xl max-h-[90vh] overflow-hidden p-0 space-y-0 gap-0">
+            <DialogContent className="max-w-7xl md:max-w-[1400px] max-h-[90vh] overflow-hidden p-0 space-y-0 gap-0">
                 <DialogHeader className="px-6 py-4 border-b border-gray-200">
                     <div className="flex justify-between items-center">
                         <div className="flex items-center">
@@ -390,31 +1169,65 @@ export default function UploadDialog({
                                     onClick={handleClickUpload}
                                     style={{ cursor: 'pointer' }}
                                 >
-                                    <CloudUpload className="w-12 h-12 text-gray-400 mb-4" />
-                                    <div className="text-center">
-                                        <p className="text-lg font-medium text-gray-900 mb-2">
-                                            {isDragOver
-                                                ? 'Drop your file here'
-                                                : 'Upload Document'}
-                                        </p>
-                                        <p className="text-sm text-gray-500 mb-4">
-                                            {isDragOver
-                                                ? 'Release to upload'
-                                                : 'Drag and drop your file here, or click to browse'}
-                                        </p>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="text-sm"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleClickUpload();
-                                            }}
-                                        >
-                                            <Upload className="w-4 h-4 mr-2" />
-                                            Choose File
-                                        </Button>
-                                    </div>
+                                    {uploadStatus !== 'idle' ? (
+                                        <div className="text-center">
+                                            {getUploadStatusIcon()}
+                                            <p className="text-lg font-medium text-gray-900 mb-2 mt-4">
+                                                {getUploadStatusText()}
+                                            </p>
+                                            {uploadStatus === 'uploading' && (
+                                                <div className="w-full max-w-xs mt-4">
+                                                    <Progress
+                                                        value={uploadProgress}
+                                                        className="w-full"
+                                                    />
+                                                </div>
+                                            )}
+                                            {validationResult &&
+                                                validationResult.warnings
+                                                    .length > 0 && (
+                                                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                                                        <div className="flex items-center">
+                                                            <AlertTriangle className="w-4 h-4 text-yellow-600 mr-2" />
+                                                            <span className="text-sm text-yellow-800">
+                                                                {
+                                                                    validationResult
+                                                                        .warnings[0]
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <CloudUpload className="w-12 h-12 text-gray-400 mb-4" />
+                                            <div className="text-center">
+                                                <p className="text-lg font-medium text-gray-900 mb-2">
+                                                    {isDragOver
+                                                        ? 'Drop your file here'
+                                                        : 'Upload Document'}
+                                                </p>
+                                                <p className="text-sm text-gray-500 mb-4">
+                                                    {isDragOver
+                                                        ? 'Release to upload'
+                                                        : 'Drag and drop your file here, or click to browse'}
+                                                </p>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="text-sm"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleClickUpload();
+                                                    }}
+                                                >
+                                                    <Upload className="w-4 h-4 mr-2" />
+                                                    Choose File
+                                                </Button>
+                                            </div>
+                                        </>
+                                    )}
                                     <input
                                         ref={fileInputRef}
                                         type="file"
@@ -437,13 +1250,16 @@ export default function UploadDialog({
                                         </div>
                                         <div className="text-xs text-gray-400 mt-2">
                                             File size:{' '}
-                                            {(
-                                                uploadedFile.size /
-                                                1024 /
-                                                1024
-                                            ).toFixed(2)}{' '}
-                                            MB
+                                            {uploadService.formatFileSize(
+                                                uploadedFile.size,
+                                            )}
                                         </div>
+                                        {uploadStatus === 'processing' && (
+                                            <div className="mt-4 flex items-center text-purple-600">
+                                                <Bot className="w-4 h-4 animate-pulse mr-2" />
+                                                Processing with AI...
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -484,6 +1300,11 @@ export default function UploadDialog({
                                     {transactions.length}
                                 </span>{' '}
                                 Transactions Extracted
+                                {tempTransactions.length > 0 && (
+                                    <span className="text-orange-600 font-semibold ml-2">
+                                        ({tempTransactions.length} temp)
+                                    </span>
+                                )}
                             </div>
                             <div className="flex gap-3">
                                 <Button
@@ -499,15 +1320,30 @@ export default function UploadDialog({
                                     variant="outline"
                                     size="sm"
                                     className="text-xs px-3 py-1.5"
+                                    onClick={handleExport}
+                                    disabled={exportMutation.isPending}
                                 >
-                                    <Download className="w-3 h-3 mr-1" />
+                                    {exportMutation.isPending ? (
+                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                    ) : (
+                                        <Download className="w-3 h-3 mr-1" />
+                                    )}
                                     Export
                                 </Button>
                                 <Button
                                     size="sm"
                                     className="text-xs px-3 py-1.5"
+                                    onClick={handleApproveAll}
+                                    disabled={
+                                        approveAllMutation.isPending ||
+                                        tempTransactions.length === 0
+                                    }
                                 >
-                                    <Check className="w-3 h-3 mr-1" />
+                                    {approveAllMutation.isPending ? (
+                                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                    ) : (
+                                        <Check className="w-3 h-3 mr-1" />
+                                    )}
                                     Approve All
                                 </Button>
                             </div>
@@ -540,158 +1376,104 @@ export default function UploadDialog({
                                 <tbody>
                                     {/* Add Transaction Form Row */}
                                     {showAddForm && (
-                                        <tr className="bg-gray-50 border-b border-gray-200">
-                                            <td className="p-3 text-sm align-middle">
-                                                <Input
-                                                    type="date"
-                                                    className="w-full text-sm"
-                                                    defaultValue={
-                                                        new Date()
-                                                            .toISOString()
-                                                            .split('T')[0]
-                                                    }
-                                                />
-                                            </td>
-                                            <td className="p-3 text-sm align-middle">
-                                                <Input
-                                                    type="text"
-                                                    placeholder="Enter description"
-                                                    className="w-full text-sm"
-                                                />
-                                            </td>
-                                            <td className="p-3 text-sm align-middle">
-                                                <Select
-                                                    disabled={categoriesLoading}
-                                                >
-                                                    <SelectTrigger className="w-full text-sm">
-                                                        <SelectValue
-                                                            placeholder={
-                                                                categoriesLoading
-                                                                    ? 'Loading categories...'
-                                                                    : 'Select category'
-                                                            }
-                                                        />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {transactionCategories.map(
-                                                            (category) => (
-                                                                <SelectItem
-                                                                    key={
-                                                                        category.code
-                                                                    }
-                                                                    value={
-                                                                        category.code
-                                                                    }
-                                                                >
-                                                                    {
-                                                                        category.name
-                                                                    }
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            </td>
-                                            <td className="p-3 text-sm align-middle">
-                                                <div className="relative">
-                                                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                                                        £
-                                                    </span>
-                                                    <Input
-                                                        type="number"
-                                                        placeholder="0.00"
-                                                        step="0.01"
-                                                        className="w-full text-sm pl-6"
-                                                    />
-                                                </div>
-                                            </td>
-                                            <td className="p-3 text-sm align-middle text-center">
-                                                <span className="inline-flex items-center text-xs font-medium text-gray-600">
-                                                    New Transaction
-                                                </span>
-                                            </td>
-                                            <td className="p-3 text-sm align-middle text-center">
-                                                <div className="flex justify-center gap-1.5">
-                                                    <Button
-                                                        size="sm"
-                                                        className="w-8 h-8 p-0 bg-blue-600 hover:bg-blue-700"
-                                                    >
-                                                        <Check className="w-3 h-3" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="w-8 h-8 p-0"
-                                                        onClick={() =>
-                                                            setShowAddForm(
-                                                                false,
-                                                            )
-                                                        }
-                                                    >
-                                                        <X className="w-3 h-3" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                        <AddTransactionForm
+                                            onSave={handleAddTransaction}
+                                            onCancel={() =>
+                                                setShowAddForm(false)
+                                            }
+                                            transactionCategories={
+                                                transactionCategories
+                                            }
+                                            clientId={clientId}
+                                            businessId={businessId}
+                                            documentId={uploadData?.documentId}
+                                        />
                                     )}
 
                                     {/* Transaction Rows */}
-                                    {transactions.map((transaction) => (
-                                        <tr
-                                            key={transaction.id}
-                                            className="border-b border-gray-200 hover:bg-gray-50"
-                                        >
-                                            <td className="p-3 text-sm align-middle">
-                                                {transaction.date}
-                                            </td>
-                                            <td className="p-3 text-sm align-middle font-medium">
-                                                {transaction.description}
-                                            </td>
-                                            <td className="p-3 text-sm align-middle">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    {getCategoryBadge(
-                                                        transaction.category,
-                                                    )}
-                                                    {transaction.isAIGenerated && (
-                                                        <Badge
-                                                            variant="secondary"
-                                                            className="text-xs bg-blue-100 text-blue-800"
-                                                        >
-                                                            <Bot className="w-2.5 h-2.5 mr-1" />
-                                                            AI Generated
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="p-3 text-sm align-middle text-right font-medium">
-                                                {formatAmount(
-                                                    transaction.amount,
-                                                )}
-                                            </td>
-                                            <td className="p-3 text-sm align-middle text-center">
-                                                {getStatusBadge(
-                                                    transaction.status,
-                                                )}
-                                            </td>
-                                            <td className="p-3 text-sm align-middle text-center">
-                                                <div className="flex justify-center gap-1.5">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="w-8 h-8 p-0"
-                                                    >
-                                                        <Edit className="w-3 h-3" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        className="w-8 h-8 p-0"
-                                                    >
-                                                        <Unlink className="w-3 h-3" />
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
+                                    {tempTransactions.map((transaction) => (
+                                        <React.Fragment key={transaction.id}>
+                                            {editingTransaction ===
+                                            transaction.id ? (
+                                                <EditTransactionForm
+                                                    transaction={transaction}
+                                                    onSave={
+                                                        handleUpdateTransaction
+                                                    }
+                                                    onCancel={handleCancelEdit}
+                                                    transactionCategories={
+                                                        transactionCategories
+                                                    }
+                                                />
+                                            ) : (
+                                                <tr className="border-b border-gray-200 hover:bg-gray-50">
+                                                    <td className="p-3 text-sm align-middle">
+                                                        {new Date(
+                                                            transaction.transactionDate,
+                                                        ).toLocaleDateString()}
+                                                    </td>
+                                                    <td className="p-3 text-sm align-middle font-medium">
+                                                        {
+                                                            transaction.description
+                                                        }
+                                                    </td>
+                                                    <td className="p-3 text-sm align-middle">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            {getCategoryBadge(
+                                                                transaction.category,
+                                                            )}
+                                                            {transaction.isAIGenerated && (
+                                                                <Badge
+                                                                    variant="secondary"
+                                                                    className="text-xs bg-blue-100 text-blue-800"
+                                                                >
+                                                                    <Bot className="w-2.5 h-2.5 mr-1" />
+                                                                    AI Generated
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3 text-sm align-middle text-right font-medium">
+                                                        {formatAmount(
+                                                            transaction.amount,
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3 text-sm align-middle text-center">
+                                                        {getStatusBadge(
+                                                            transaction.status,
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3 text-sm align-middle text-center">
+                                                        <div className="flex justify-center gap-1.5">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="w-8 h-8 p-0"
+                                                                onClick={() =>
+                                                                    handleEditTransaction(
+                                                                        transaction.id,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Edit className="w-3 h-3" />
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="w-8 h-8 p-0"
+                                                                onClick={() =>
+                                                                    handleDeleteTransaction(
+                                                                        transaction.id,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Trash className="w-3 h-3" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     ))}
                                 </tbody>
                             </table>

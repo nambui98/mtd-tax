@@ -90,6 +90,7 @@ export interface DocumentStats {
     byDocumentType: Record<string, number>;
     totalTransactions: number;
     totalAmount: number;
+    aiAccuracy?: number;
 }
 
 export interface DocumentFilters {
@@ -277,6 +278,124 @@ export const documentsService = {
         if (clientId) params.append('clientId', clientId);
 
         const response = await api.get(`/documents/stats?${params.toString()}`);
+        return response.data.data;
+    },
+
+    // Bulk transaction operations
+    createBulkTransactions: async (
+        documentId: string,
+        transactions: Array<{
+            transactionDate: string;
+            description: string;
+            category: string;
+            amount: number;
+            currency?: string;
+            isAIGenerated?: boolean;
+            aiConfidence?: number;
+            notes?: string;
+        }>,
+    ): Promise<DocumentTransaction[]> => {
+        const response = await api.post('/documents/transactions/bulk', {
+            documentId,
+            transactions,
+        });
+        return response.data.data;
+    },
+
+    updateBulkTransactions: async (
+        transactions: Array<{
+            id: string;
+            transactionDate?: string;
+            description?: string;
+            category?: string;
+            amount?: number;
+            currency?: string;
+            status?: string;
+            notes?: string;
+        }>,
+    ): Promise<DocumentTransaction[]> => {
+        const response = await api.put('/documents/transactions/bulk', {
+            transactions,
+        });
+        return response.data.data;
+    },
+
+    deleteBulkTransactions: async (transactionIds: string[]): Promise<void> => {
+        await api.delete('/documents/transactions/bulk', {
+            data: { transactionIds },
+        });
+    },
+
+    // Document processing
+    processDocument: async (documentId: string): Promise<any> => {
+        const response = await api.post(`/documents/${documentId}/process`);
+        return response.data.data;
+    },
+
+    getDocumentProcessingStatus: async (documentId: string): Promise<any> => {
+        const response = await api.get(
+            `/documents/${documentId}/processing-status`,
+        );
+        return response.data.data;
+    },
+
+    // Transaction approval
+    approveAllTransactions: async (documentId: string): Promise<any> => {
+        const response = await api.post(`/documents/${documentId}/approve-all`);
+        return response.data.data;
+    },
+
+    approveTransaction: async (
+        transactionId: string,
+    ): Promise<DocumentTransaction> => {
+        const response = await api.post(
+            `/documents/transactions/${transactionId}/approve`,
+        );
+        return response.data.data;
+    },
+
+    rejectTransaction: async (
+        transactionId: string,
+        reason?: string,
+    ): Promise<DocumentTransaction> => {
+        const response = await api.post(
+            `/documents/transactions/${transactionId}/reject`,
+            {
+                reason,
+            },
+        );
+        return response.data.data;
+    },
+
+    // Export functionality
+    exportDocumentTransactions: async (
+        documentId: string,
+        format: 'csv' | 'excel' | 'pdf' = 'csv',
+        includeMetadata?: boolean,
+    ): Promise<any> => {
+        const response = await api.post(`/documents/${documentId}/export`, {
+            format,
+            includeMetadata,
+        });
+        return response.data.data;
+    },
+
+    // Get transaction categories
+    getTransactionCategories: async (): Promise<any> => {
+        const response = await api.get('/documents/categories');
+        return response.data.data;
+    },
+
+    // Delete document
+    deleteDocument: async (documentId: string): Promise<void> => {
+        await api.delete(`/documents/${documentId}`);
+    },
+
+    // Get document download URL
+    getDocumentDownloadUrl: async (
+        documentId: string,
+    ): Promise<{ downloadUrl: string }> => {
+        const response = await api.get(`/documents/${documentId}/download-url`);
         return response.data.data;
     },
 };

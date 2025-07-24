@@ -32,6 +32,7 @@ export default function ClientHeader({ client, businesses }: Props) {
                         <div className="flex flex-wrap gap-2 mt-2">
                             {businesses.map((business) => (
                                 <span
+                                    key={business.businessId}
                                     className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getBusinessBadgeColor(business.typeOfBusiness)}`}
                                 >
                                     {getBusinessIcon(business.typeOfBusiness)}

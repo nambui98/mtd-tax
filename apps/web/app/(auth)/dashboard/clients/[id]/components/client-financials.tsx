@@ -775,7 +775,11 @@ export default function ClientFinancials({
                 </div>
 
                 {/* Documents */}
-                <ClientDocuments clientId={clientId} />
+                <ClientDocuments
+                    clientId={clientId}
+                    businessId={activeBusiness}
+                    typeOfBusiness={businessDetails?.businessType || undefined}
+                />
             </div>
 
             {/* Financial Summary */}
