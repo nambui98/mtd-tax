@@ -35,6 +35,7 @@ import {
     Send,
     FileDown,
     Loader2,
+    RefreshCw,
 } from 'lucide-react';
 import UploadDialog from '@/app/(auth)/dashboard/documents/components/upload-dialog';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -67,6 +68,7 @@ export default function ClientDocuments({
         useState('All Document Types');
     const [selectedBusiness, setSelectedBusiness] = useState('All Businesses');
     const [selectedStatus, setSelectedStatus] = useState('All Statuses');
+    const [showRemoteDocuments, setShowRemoteDocuments] = useState(false);
 
     // Fetch documents for this client
     const {
@@ -77,6 +79,17 @@ export default function ClientDocuments({
         queryKey: ['client-documents', clientId],
         queryFn: () => documentsService.getDocuments({ clientId }),
         enabled: !!clientId,
+    });
+
+    // Fetch remote documents for this client
+    const {
+        data: remoteDocuments,
+        isLoading: remoteDocumentsLoading,
+        refetch: refetchRemoteDocuments,
+    } = useQuery({
+        queryKey: ['client-remote-documents', clientId],
+        queryFn: () => documentsService.getRemoteDocuments(clientId),
+        enabled: !!clientId && showRemoteDocuments,
     });
 
     // Fetch document statistics
@@ -116,6 +129,47 @@ export default function ClientDocuments({
         },
     });
 
+    // Sync remote document mutation
+    const syncRemoteDocumentMutation = useMutation({
+        mutationFn: async ({
+            documentId,
+            clientId,
+            businessId,
+        }: {
+            documentId: string;
+            clientId: string;
+            businessId?: string;
+        }) => {
+            return documentsService.syncRemoteDocument(
+                documentId,
+                clientId,
+                businessId,
+            );
+        },
+        onSuccess: () => {
+            toast.success('Remote document synced successfully');
+            refetchDocuments();
+            refetchRemoteDocuments();
+        },
+        onError: (error: any) => {
+            toast.error(`Failed to sync remote document: ${error.message}`);
+        },
+    });
+
+    // Refresh remote documents mutation
+    const refreshRemoteDocumentsMutation = useMutation({
+        mutationFn: async (clientId: string) => {
+            return documentsService.refreshRemoteDocuments(clientId);
+        },
+        onSuccess: (result) => {
+            toast.success(`Refreshed ${result.synced} remote documents`);
+            refetchRemoteDocuments();
+        },
+        onError: (error: any) => {
+            toast.error(`Failed to refresh remote documents: ${error.message}`);
+        },
+    });
+
     const handleDeleteDocument = (documentId: string) => {
         if (confirm('Are you sure you want to delete this document?')) {
             deleteDocumentMutation.mutate(documentId);
@@ -129,6 +183,22 @@ export default function ClientDocuments({
     const handleEditDocument = (doc: any) => {
         setDocumentToEdit(doc);
         setShowUploadDialog(true);
+    };
+
+    const handleSyncRemoteDocument = (remoteDoc: any) => {
+        syncRemoteDocumentMutation.mutate({
+            documentId: remoteDoc.id,
+            clientId,
+            businessId,
+        });
+    };
+
+    const handleRefreshRemoteDocuments = () => {
+        refreshRemoteDocumentsMutation.mutate(clientId);
+    };
+
+    const handleToggleRemoteDocuments = () => {
+        setShowRemoteDocuments(!showRemoteDocuments);
     };
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -411,6 +481,19 @@ export default function ClientDocuments({
                         <Filter className="w-4 h-4 mr-2" />
                         Filters
                     </Button>
+                    <Button
+                        variant="outline"
+                        size="lg"
+                        onClick={handleToggleRemoteDocuments}
+                        className={
+                            showRemoteDocuments
+                                ? 'bg-blue-50 border-blue-200'
+                                : ''
+                        }
+                    >
+                        <Cloud className="w-4 h-4 mr-2" />
+                        {showRemoteDocuments ? 'Hide Remote' : 'Show Remote'}
+                    </Button>
                     <UploadDialog
                         clientId={clientId}
                         businessId={businessId}
@@ -436,6 +519,130 @@ export default function ClientDocuments({
                     View All <ChevronRight className="w-4 h-4 ml-1" />
                 </a>
             </div>
+
+            {/* Remote Documents Section */}
+            {showRemoteDocuments && (
+                <div className="mb-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                            <Cloud className="w-5 h-5 mr-2 text-blue-600" />
+                            Remote Documents
+                        </h2>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleRefreshRemoteDocuments}
+                            disabled={refreshRemoteDocumentsMutation.isPending}
+                        >
+                            {refreshRemoteDocumentsMutation.isPending ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <RefreshCw className="w-4 h-4 mr-2" />
+                            )}
+                            Refresh
+                        </Button>
+                    </div>
+
+                    {/* Remote Documents Loading */}
+                    {remoteDocumentsLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                            <span className="ml-2 text-gray-600">
+                                Loading remote documents...
+                            </span>
+                        </div>
+                    ) : remoteDocuments?.length === 0 ? (
+                        <div className="text-center py-8 bg-gray-50 rounded-lg">
+                            <Cloud className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-600">
+                                No remote documents available
+                            </p>
+                            <p className="text-sm text-gray-500 mt-1">
+                                Click "Refresh" to check for new remote
+                                documents
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="space-y-0">
+                            {remoteDocuments?.map((remoteDoc) => (
+                                <div
+                                    key={remoteDoc.id}
+                                    className="flex items-center p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors"
+                                >
+                                    <div className="w-10 h-10 bg-blue-100 rounded-md flex items-center justify-center mr-4">
+                                        <Cloud className="w-6 h-6 text-blue-600" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="font-medium text-gray-900 mb-1">
+                                            {remoteDoc.originalFileName}
+                                        </div>
+                                        <div className="flex text-xs text-gray-600 gap-4 flex-wrap">
+                                            <div className="flex items-center">
+                                                <Calendar className="w-3 h-3 mr-1" />
+                                                {formatDate(
+                                                    remoteDoc.uploadedAt,
+                                                )}
+                                            </div>
+                                            <div className="flex items-center">
+                                                <FileText className="w-3 h-3 mr-1" />
+                                                {formatFileSize(
+                                                    remoteDoc.fileSize,
+                                                )}
+                                            </div>
+                                            <div className="flex items-center">
+                                                <span className="text-blue-600 font-medium">
+                                                    {(remoteDoc as any)
+                                                        .source || 'Remote'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2 mt-2">
+                                            {remoteDoc.documentType?.map(
+                                                (
+                                                    type: string,
+                                                    index: number,
+                                                ) => (
+                                                    <span
+                                                        key={index}
+                                                        className={`px-2 py-1 text-xs rounded-full ${getTagColor(type)}`}
+                                                    >
+                                                        {type}
+                                                    </span>
+                                                ),
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center mr-4">
+                                        <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+                                        <span className="text-xs font-medium text-green-700">
+                                            Available
+                                        </span>
+                                    </div>
+                                    <div className="flex gap-1">
+                                        <button
+                                            className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center text-blue-600 hover:bg-blue-200 transition-colors"
+                                            onClick={() =>
+                                                handleSyncRemoteDocument(
+                                                    remoteDoc,
+                                                )
+                                            }
+                                            disabled={
+                                                syncRemoteDocumentMutation.isPending
+                                            }
+                                        >
+                                            {syncRemoteDocumentMutation.isPending ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Download className="w-4 h-4" />
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Loading State */}
             {documentsLoading ? (
@@ -572,19 +779,6 @@ export default function ClientDocuments({
                                                             </span>
                                                         </div>
                                                         <div className="flex gap-1">
-                                                            <button
-                                                                className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-                                                                onClick={(
-                                                                    e,
-                                                                ) => {
-                                                                    e.stopPropagation();
-                                                                    setShowPreviewModal(
-                                                                        true,
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <Eye className="w-4 h-4" />
-                                                            </button>
                                                             <button
                                                                 className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
                                                                 onClick={(

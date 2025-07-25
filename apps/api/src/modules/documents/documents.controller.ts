@@ -544,4 +544,80 @@ export class DocumentsController {
             req.user.userId,
         );
     }
+
+    // Remote document endpoints
+    @Get('remote')
+    @ApiOperation({ summary: 'Get remote documents for a client' })
+    @ApiQuery({ name: 'clientId', required: true })
+    @ApiQuery({ name: 'documentType', required: false })
+    @ApiQuery({ name: 'status', required: false })
+    @ApiQuery({ name: 'dateFrom', required: false })
+    @ApiQuery({ name: 'dateTo', required: false })
+    @ApiQuery({ name: 'search', required: false })
+    async getRemoteDocuments(
+        @Request() req: { user: { userId: string } },
+        @Query('clientId') clientId: string,
+        @Query('documentType') documentType?: string,
+        @Query('status') status?: string,
+        @Query('dateFrom') dateFrom?: string,
+        @Query('dateTo') dateTo?: string,
+        @Query('search') search?: string,
+    ) {
+        return this.documentsService.getRemoteDocuments(
+            req.user.userId,
+            clientId,
+            {
+                documentType,
+                status,
+                dateFrom,
+                dateTo,
+                search,
+            },
+        );
+    }
+
+    @Post('remote/:id/sync')
+    @ApiOperation({ summary: 'Sync a remote document' })
+    @ApiParam({ name: 'id', description: 'Remote Document ID' })
+    async syncRemoteDocument(
+        @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
+        @Body()
+        body: {
+            clientId: string;
+            businessId?: string;
+        },
+    ) {
+        return this.documentsService.syncRemoteDocument(
+            id,
+            req.user.userId,
+            body.clientId,
+            body.businessId,
+        );
+    }
+
+    @Get('remote/:id/status')
+    @ApiOperation({ summary: 'Get remote document sync status' })
+    @ApiParam({ name: 'id', description: 'Remote Document ID' })
+    async getRemoteDocumentStatus(
+        @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
+    ) {
+        return this.documentsService.getRemoteDocumentStatus(
+            id,
+            req.user.userId,
+        );
+    }
+
+    @Post('remote/refresh')
+    @ApiOperation({ summary: 'Refresh all remote documents for a client' })
+    async refreshRemoteDocuments(
+        @Request() req: { user: { userId: string } },
+        @Body() body: { clientId: string },
+    ) {
+        return this.documentsService.refreshRemoteDocuments(
+            req.user.userId,
+            body.clientId,
+        );
+    }
 }

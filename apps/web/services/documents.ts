@@ -400,6 +400,76 @@ export const documentsService = {
         return response.data.data;
     },
 
+    // Remote document operations
+    getRemoteDocuments: async (
+        clientId: string,
+        filters?: {
+            documentType?: string;
+            status?: string;
+            dateFrom?: string;
+            dateTo?: string;
+            search?: string;
+        },
+    ): Promise<Document[]> => {
+        const params = new URLSearchParams();
+        params.append('clientId', clientId);
+
+        if (filters) {
+            Object.entries(filters).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                    params.append(key, value.toString());
+                }
+            });
+        }
+
+        const response = await api.get(
+            `/documents/remote?${params.toString()}`,
+        );
+        return response.data.data;
+    },
+
+    syncRemoteDocument: async (
+        documentId: string,
+        clientId: string,
+        businessId?: string,
+    ): Promise<Document> => {
+        const response = await api.post(
+            `/documents/remote/${documentId}/sync`,
+            {
+                clientId,
+                businessId,
+            },
+        );
+        return response.data.data;
+    },
+
+    getRemoteDocumentStatus: async (
+        documentId: string,
+    ): Promise<{
+        status: string;
+        lastSync: string;
+        syncStatus: 'pending' | 'completed' | 'failed';
+        error?: string;
+    }> => {
+        const response = await api.get(
+            `/documents/remote/${documentId}/status`,
+        );
+        return response.data.data;
+    },
+
+    refreshRemoteDocuments: async (
+        clientId: string,
+    ): Promise<{
+        synced: number;
+        failed: number;
+        total: number;
+    }> => {
+        const response = await api.post(`/documents/remote/refresh`, {
+            clientId,
+        });
+        return response.data.data;
+    },
+
     updateDocumentTransactions: async (
         documentId: string,
         transactions: Array<{

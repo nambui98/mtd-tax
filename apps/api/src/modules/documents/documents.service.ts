@@ -1121,4 +1121,172 @@ export class DocumentsService {
 
         return resultTransactions;
     }
+
+    // Remote document methods
+    async getRemoteDocuments(
+        userId: string,
+        clientId: string,
+        filters?: {
+            documentType?: string;
+            status?: string;
+            dateFrom?: string;
+            dateTo?: string;
+            search?: string;
+        },
+    ): Promise<any[]> {
+        // Simulate remote document fetching
+        // In a real implementation, this would connect to external APIs
+        const mockRemoteDocuments = [
+            {
+                id: 'remote-1',
+                originalFileName: 'Bank Statement - April 2024.pdf',
+                fileSize: 2048576,
+                uploadedAt: new Date('2024-04-15').toISOString(),
+                status: 'available',
+                documentType: ['bank statement'],
+                source: 'bank_api',
+                lastSync: new Date().toISOString(),
+            },
+            {
+                id: 'remote-2',
+                originalFileName: 'Invoice - ABC Company.pdf',
+                fileSize: 1048576,
+                uploadedAt: new Date('2024-04-10').toISOString(),
+                status: 'available',
+                documentType: ['invoice'],
+                source: 'accounting_system',
+                lastSync: new Date().toISOString(),
+            },
+            {
+                id: 'remote-3',
+                originalFileName: 'Receipt - Office Supplies.pdf',
+                fileSize: 512000,
+                uploadedAt: new Date('2024-04-05').toISOString(),
+                status: 'available',
+                documentType: ['receipt'],
+                source: 'expense_tracker',
+                lastSync: new Date().toISOString(),
+            },
+        ];
+
+        // Apply filters
+        let filteredDocuments = mockRemoteDocuments;
+
+        if (filters?.documentType) {
+            filteredDocuments = filteredDocuments.filter((doc) =>
+                doc.documentType.some((type) =>
+                    type
+                        .toLowerCase()
+                        .includes(filters.documentType!.toLowerCase()),
+                ),
+            );
+        }
+
+        if (filters?.status) {
+            filteredDocuments = filteredDocuments.filter(
+                (doc) => doc.status === filters.status,
+            );
+        }
+
+        if (filters?.search) {
+            filteredDocuments = filteredDocuments.filter((doc) =>
+                doc.originalFileName
+                    .toLowerCase()
+                    .includes(filters.search!.toLowerCase()),
+            );
+        }
+
+        if (filters?.dateFrom) {
+            const dateFrom = new Date(filters.dateFrom);
+            filteredDocuments = filteredDocuments.filter(
+                (doc) => new Date(doc.uploadedAt) >= dateFrom,
+            );
+        }
+
+        if (filters?.dateTo) {
+            const dateTo = new Date(filters.dateTo);
+            filteredDocuments = filteredDocuments.filter(
+                (doc) => new Date(doc.uploadedAt) <= dateTo,
+            );
+        }
+
+        return filteredDocuments;
+    }
+
+    async syncRemoteDocument(
+        remoteDocumentId: string,
+        userId: string,
+        clientId: string,
+        businessId?: string,
+    ): Promise<any> {
+        // Simulate syncing a remote document
+        // In a real implementation, this would download the file and create a local document
+
+        // Simulate processing time
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        // Create a local document record
+        const [document] = await this.db
+            .insert(documentsTable)
+            .values({
+                userId,
+                clientId,
+                businessId: businessId || null,
+                fileName: `remote-${remoteDocumentId}.pdf`,
+                originalFileName: `Remote Document ${remoteDocumentId}.pdf`,
+                fileSize: 1024000,
+                fileType: 'pdf',
+                mimeType: 'application/pdf',
+                filePath: `remote-documents/${userId}/${clientId}/${remoteDocumentId}.pdf`,
+                status: 'uploaded',
+                processingStatus: 'pending',
+                documentType: ['remote'],
+            })
+            .returning();
+
+        return {
+            id: document.id,
+            status: 'synced',
+            message: 'Remote document synced successfully',
+            document,
+        };
+    }
+
+    async getRemoteDocumentStatus(
+        remoteDocumentId: string,
+        userId: string,
+    ): Promise<{
+        status: string;
+        lastSync: string;
+        syncStatus: 'pending' | 'completed' | 'failed';
+        error?: string;
+    }> {
+        // Simulate getting remote document status
+        return {
+            status: 'available',
+            lastSync: new Date().toISOString(),
+            syncStatus: 'completed',
+        };
+    }
+
+    async refreshRemoteDocuments(
+        userId: string,
+        clientId: string,
+    ): Promise<{
+        synced: number;
+        failed: number;
+        total: number;
+    }> {
+        // Simulate refreshing all remote documents
+        // In a real implementation, this would check for new documents from external sources
+
+        // Simulate processing time
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+
+        return {
+            synced: 3,
+            failed: 0,
+            total: 3,
+        };
+    }
 }

@@ -50,7 +50,7 @@ export class AuthService {
 
         // Generate OTP secret for email verification
         const emailVerificationSecret = speakeasy.generateSecret({
-            name: `MTD Tax Email Verification:${signupDto.user.email}`,
+            name: `MTD Tax Email Verification:${signupDto.user.email.toLowerCase()}`,
         });
 
         // Generate OTP for email verification (6 digits, valid for 10 minutes)
@@ -67,7 +67,7 @@ export class AuthService {
             const [user] = await tx
                 .insert(usersTable)
                 .values({
-                    email: signupDto.user.email,
+                    email: signupDto.user.email.toLowerCase(),
                     firstName: signupDto.user.firstName,
                     lastName: signupDto.user.lastName,
                     passwordHash: hashedPassword,
@@ -107,11 +107,11 @@ export class AuthService {
 
             // Send email verification OTP
             await this.mailerService.sendMail({
-                to: signupDto.user.email,
+                to: signupDto.user.email.toLowerCase(),
                 subject: 'Verify Your Email - MTD Tax',
                 template: 'email-verification',
                 context: {
-                    email: signupDto.user.email,
+                    email: signupDto.user.email.toLowerCase(),
                     firstName: signupDto.user.firstName,
                     otp: emailVerificationOTP,
                 },
@@ -122,7 +122,7 @@ export class AuthService {
                     'User created successfully. Please check your email for verification code.',
                 user: {
                     id: user.id,
-                    email: user.email,
+                    email: user.email.toLowerCase(),
                     firstName: user.firstName,
                     lastName: user.lastName,
                     emailVerified: false,
@@ -189,7 +189,7 @@ export class AuthService {
             expires_in: 3600,
             user: {
                 id: user.id,
-                email: user.email,
+                email: user.email.toLowerCase(),
                 firstName: user.firstName,
                 lastName: user.lastName,
                 roles: userRoles.map((ur) => ur.roleName),
@@ -230,7 +230,7 @@ export class AuthService {
 
         const payload = {
             sub: user.id,
-            email: user.email,
+            email: user.email.toLowerCase(),
             roles: userRoles.map((ur) => ur.roleName),
         };
 
@@ -250,7 +250,7 @@ export class AuthService {
             refresh_token: refreshToken,
             user: {
                 id: user.id,
-                email: user.email,
+                email: user.email.toLowerCase(),
                 firstName: user.firstName,
                 lastName: user.lastName,
                 roles: userRoles.map((ur) => ur.roleName),
@@ -318,7 +318,7 @@ export class AuthService {
 
         const payload = {
             sub: user.id,
-            email: user.email,
+            email: user.email.toLowerCase(),
             roles: userRoles.map((ur) => ur.roleName),
         };
 
@@ -339,7 +339,7 @@ export class AuthService {
             refresh_token: refreshToken,
             user: {
                 id: user.id,
-                email: user.email,
+                email: user.email.toLowerCase(),
                 firstName: user.firstName,
                 lastName: user.lastName,
                 emailVerified: true,
@@ -378,7 +378,7 @@ export class AuthService {
             subject: 'Verify Your Email - MTD Tax',
             template: 'email-verification',
             context: {
-                email: user.email,
+                email: user.email.toLowerCase(),
                 firstName: user.firstName,
                 otp: emailVerificationOTP,
             },
@@ -411,11 +411,11 @@ export class AuthService {
 
         // Send login OTP email
         await this.mailerService.sendMail({
-            to: user.email,
+            to: user.email.toLowerCase(),
             subject: 'Login Verification - MTD Tax',
             template: 'email-verification',
             context: {
-                email: user.email,
+                email: user.email.toLowerCase(),
                 firstName: user.firstName,
                 otp: loginOTP,
             },
@@ -462,7 +462,7 @@ export class AuthService {
 
         const payload = {
             sub: user.id,
-            email: user.email,
+            email: user.email.toLowerCase(),
             agentReferenceNumber: user.agentReferenceNumber,
             utr: user.utr,
             nino: user.nino,
@@ -488,7 +488,7 @@ export class AuthService {
             refresh_token: refreshToken,
             user: {
                 id: user.id,
-                email: user.email,
+                email: user.email.toLowerCase(),
                 firstName: user.firstName,
                 lastName: user.lastName,
                 roles: userRoles.map((ur) => ur.roleName),
@@ -519,7 +519,7 @@ export class AuthService {
 
         // Send password reset email
         await this.mailerService.sendMail({
-            to: email,
+            to: email.toLowerCase(),
             subject: 'Password Reset Request',
             template: 'password-reset',
             context: {
@@ -572,7 +572,7 @@ export class AuthService {
 
             const newPayload = {
                 sub: user.id,
-                email: user.email,
+                email: user.email.toLowerCase(),
                 roles: userRoles.map((ur) => ur.roleName),
             };
 
@@ -603,7 +603,7 @@ export class AuthService {
         const [user] = await this.db
             .select()
             .from(usersTable)
-            .where(eq(usersTable.email, email));
+            .where(eq(usersTable.email, email.toLowerCase()));
         return user;
     }
 
