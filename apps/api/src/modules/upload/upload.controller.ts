@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
     Controller,
     Post,
@@ -205,38 +206,26 @@ export class UploadController {
                 file.mimetype,
             );
 
-            // // Create document record
-            // const document = await this.documentsService.createDocument({
-            //     userId: req.user.userId,
-            //     clientId: body.clientId,
-            //     businessId: body.businessId,
-            //     fileName,
-            //     originalFileName: file.originalname,
-            //     fileSize: file.size,
-            //     fileType: fileExtension || 'unknown',
-            //     mimeType: file.mimetype,
-            //     filePath,
-            //     documentType: body.documentType,
-            //     s3Key: uploadResult.key,
-            //     s3Url: uploadResult.url,
-            // });
-
-            // Start AI processing in background
-            // this.uploadService
-            //     .processDocumentWithAI(document.id)
-            //     .catch((error) => {
-            //         console.error('AI processing failed:', error);
-            //     });
+            // Create document record in database
+            const document = await this.documentsService.uploadDocument({
+                userId: req.user.userId,
+                clientId: body.clientId,
+                businessId: body.businessId,
+                file: file.buffer.toString('base64'),
+                folderId: body.folderId,
+            });
 
             return {
                 success: true,
                 data: {
-                    // documentId: document.id,
-                    // fileName: document.originalFileName,
-                    // fileSize: document.fileSize,
+                    documentId: document.id,
+                    fileName: file.originalname,
+                    fileSize: file.size,
                     uploadStatus: 'completed',
-                    processingStatus: 'pending',
-                    s3Url: uploadResult.url,
+                    processingStatus: document.processingStatus,
+                    s3Url: document.s3Url,
+                    documentType: document.documentType,
+                    uploadedAt: document.uploadedAt,
                 },
                 message: 'Document uploaded successfully',
             };

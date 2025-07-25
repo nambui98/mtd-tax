@@ -20,7 +20,7 @@ export interface FileValidationResult {
 }
 
 export interface UploadResult {
-    documentId: string;
+    id: string;
     fileName: string;
     fileSize: number;
     uploadStatus: 'completed';
@@ -77,8 +77,7 @@ export const uploadService = {
         file: File,
         data: {
             clientId: string;
-            businessId?: string;
-            documentType: string;
+            businessId: string;
             folderId?: string;
         },
         onProgress?: (progress: number) => void,
@@ -87,10 +86,9 @@ export const uploadService = {
         formData.append('file', file);
         formData.append('clientId', data.clientId);
         if (data.businessId) formData.append('businessId', data.businessId);
-        formData.append('documentType', data.documentType);
         if (data.folderId) formData.append('folderId', data.folderId);
 
-        const response = await api.post('/upload/document', formData, {
+        const response = await api.post('/documents/upload', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
@@ -112,8 +110,7 @@ export const uploadService = {
         file: File,
         data: {
             clientId: string;
-            businessId?: string;
-            documentType: string;
+            businessId: string;
             folderId?: string;
         },
     ): Promise<ChunkedUploadConfig> => {
@@ -123,7 +120,6 @@ export const uploadService = {
             mimeType: file.type,
             clientId: data.clientId,
             businessId: data.businessId,
-            documentType: data.documentType,
             folderId: data.folderId,
         });
 
@@ -139,8 +135,7 @@ export const uploadService = {
         fileName: string,
         data: {
             clientId: string;
-            businessId?: string;
-            documentType: string;
+            businessId: string;
             folderId?: string;
         },
         onProgress?: (progress: number) => void,
@@ -161,7 +156,7 @@ export const uploadService = {
         formData.append('fileName', fileName);
         formData.append('clientId', data.clientId);
         if (data.businessId) formData.append('businessId', data.businessId);
-        formData.append('documentType', data.documentType);
+        // formData.append('documentType', data.documentType);
         if (data.folderId) formData.append('folderId', data.folderId);
 
         const response = await api.post('/upload/document/chunk', formData, {
@@ -203,8 +198,7 @@ export const uploadService = {
         file: File,
         data: {
             clientId: string;
-            businessId?: string;
-            documentType: string;
+            businessId: string;
             folderId?: string;
         },
         onProgress?: (progress: number) => void,
@@ -236,7 +230,11 @@ export const uploadService = {
                     partNumber,
                     totalChunks,
                     file.name,
-                    data,
+                    {
+                        clientId: data.clientId,
+                        businessId: data.businessId!,
+                        folderId: data.folderId,
+                    },
                     onChunkProgress,
                 );
 
@@ -278,8 +276,7 @@ export const uploadService = {
         files: File[],
         data: {
             clientId: string;
-            businessId?: string;
-            documentType: string;
+            businessId: string;
             folderId?: string;
         },
         onFileProgress?: (fileIndex: number, progress: number) => void,
@@ -349,7 +346,11 @@ export const uploadService = {
             try {
                 return await uploadService.uploadFileWithChunking(
                     file,
-                    data,
+                    {
+                        clientId: data.clientId,
+                        businessId: data.businessId!,
+                        folderId: data.folderId,
+                    },
                     onProgress,
                 );
             } catch (error) {

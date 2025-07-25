@@ -88,6 +88,7 @@ type TransactionCategory = {
     label: string;
     value: string;
     hmrcField: string;
+    type: string;
 };
 
 type Transaction = {
@@ -98,6 +99,7 @@ type Transaction = {
     amount: number;
     status: string;
     isAIGenerated: boolean;
+    type: string;
     aiConfidence?: number;
     currency?: string;
     notes?: string;
@@ -133,6 +135,7 @@ function AddTransactionForm({
         description: '',
         category: '',
         amount: '',
+        type: '',
     });
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -152,6 +155,7 @@ function AddTransactionForm({
             amount: parseFloat(formData.amount),
             currency: 'GBP',
             isAIGenerated: false,
+            type: formData.type,
         };
 
         onSave(transaction);
@@ -190,7 +194,14 @@ function AddTransactionForm({
                 <Select
                     value={formData.category}
                     onValueChange={(value) =>
-                        setFormData({ ...formData, category: value })
+                        setFormData({
+                            ...formData,
+                            category: value,
+                            type:
+                                transactionCategories.find(
+                                    (cat) => cat.value === value,
+                                )?.type || '',
+                        })
                     }
                 >
                     <SelectTrigger className="w-full text-sm">
@@ -444,15 +455,25 @@ export default function UploadDialog({
         mutationFn: async (file: File) => {
             if (!clientId) throw new Error('Client ID is required');
             setUploadStatus('uploading');
-            return uploadService.uploadFile(file, (progress) => {
-                setUploadProgress(progress);
-            });
+            return uploadService.uploadDocument(
+                file,
+                {
+                    clientId,
+                    businessId: businessId!,
+                },
+                (progress) => {
+                    setUploadProgress(progress);
+                },
+            );
         },
         onSuccess: () => {
             // setUploadStatus('processing');
             setUploadStatus('completed');
             setUploadProgress(100);
             toast.success('Document uploaded successfully');
+            queryClient.invalidateQueries({
+                queryKey: ['client-documents', clientId],
+            });
             // Start processing
             // processDocument(data.documentId);
         },
@@ -461,6 +482,7 @@ export default function UploadDialog({
             toast.error(`Upload failed: ${error.message}`);
         },
     });
+    console.log('uploadData', uploadData);
 
     // Process document mutation
     const processMutation = useMutation({
@@ -533,23 +555,28 @@ export default function UploadDialog({
         },
     });
 
+    const queryClient = useQueryClient();
+
     const uploadDocumentWithTransactionsMutation = useMutation({
         mutationFn: ({
             clientId,
             businessId,
             documentUrl,
             transactions,
+            documentId,
         }: {
             clientId: string;
             businessId: string;
             documentUrl: string;
             transactions: any[];
+            documentId: string;
         }) =>
             documentsService.uploadDocumentWithTransactions({
                 clientId,
                 businessId,
                 documentUrl,
                 transactions,
+                documentId,
             }),
         onSuccess: () => {
             toast.success(
@@ -557,6 +584,9 @@ export default function UploadDialog({
             );
             setIsOpenDialog(false);
             setTempTransactions([]);
+            queryClient.invalidateQueries({
+                queryKey: ['client-documents', clientId],
+            });
         },
         onError: (error: any) => {
             toast.error(
@@ -651,7 +681,7 @@ export default function UploadDialog({
             return;
         }
 
-        if (!uploadData?.s3Url) {
+        if (!uploadData?.id) {
             toast.error('No document uploaded');
             return;
         }
@@ -676,6 +706,7 @@ export default function UploadDialog({
                 businessId: businessId!,
                 documentUrl: uploadData.s3Url,
                 transactions: transactionsToSave,
+                documentId: uploadData.id,
             });
 
             // Clear temp transactions
@@ -715,12 +746,6 @@ export default function UploadDialog({
     };
 
     const handleAddTransaction = async (transaction: any) => {
-        debugger;
-        if (!uploadData?.s3Url) {
-            toast.error('No document uploaded');
-            return;
-        }
-
         // Add to local temp transactions
         const newTempTransaction: Transaction = {
             id: `temp-${Date.now()}-${Math.random()}`,
@@ -732,17 +757,18 @@ export default function UploadDialog({
             isAIGenerated: false,
             currency: transaction.currency || 'GBP',
             notes: transaction.notes,
+            type: transaction.type,
         };
 
         setTempTransactions((prev) => [...prev, newTempTransaction]);
-        toast.success('Transaction added to temporary storage');
+        // toast.success('Transaction added to temporary storage');
         setShowAddForm(false);
     };
 
     const handleExport = () => {
         if (uploadData?.s3Url) {
             exportMutation.mutate({
-                documentId: uploadData.documentId,
+                documentId: uploadData.id,
                 format: 'csv',
             });
         }
@@ -1285,6 +1311,14 @@ export default function UploadDialog({
                                                 uploadedFile.size,
                                             )}
                                         </div>
+                                        {isUploading && (
+                                            <div className="w-full max-w-xs mt-4">
+                                                <Progress
+                                                    value={uploadProgress}
+                                                    className="w-full"
+                                                />
+                                            </div>
+                                        )}
                                         {uploadStatus === 'processing' && (
                                             <div className="mt-4 flex items-center text-purple-600">
                                                 <Bot className="w-4 h-4 animate-pulse mr-2" />
@@ -1433,7 +1467,7 @@ export default function UploadDialog({
                                             }
                                             clientId={clientId}
                                             businessId={businessId}
-                                            documentId={uploadData?.documentId}
+                                            documentId={uploadData?.id}
                                         />
                                     )}
 

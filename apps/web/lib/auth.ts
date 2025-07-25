@@ -1,6 +1,7 @@
 import type { SessionStrategy, User } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { Env } from './env';
+import { authService } from '@/services/auth';
 
 export const authOptions = {
     providers: [
@@ -132,8 +133,13 @@ export const authOptions = {
             if (token.expiresAt && now < token.expiresAt) {
                 return token;
             }
-            //refresh token
-            // return await authService.refreshAccessToken(token);
+
+            // Token has expired, try to refresh it
+            if (token.refreshToken) {
+                return await authService.refreshAccessToken(token);
+            }
+
+            return token;
         },
         async session({
             session,

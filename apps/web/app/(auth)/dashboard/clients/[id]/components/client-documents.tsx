@@ -55,6 +55,8 @@ export default function ClientDocuments({
 }: Props) {
     const [isLoadingDocuments] = useState(false);
     const [showPreviewModal, setShowPreviewModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [selectedDocument, setSelectedDocument] = useState<any>(null);
     const [showAddTransactionModal, setShowAddTransactionModal] =
         useState(false);
     const [currentZoom, setCurrentZoom] = useState(1);
@@ -65,7 +67,6 @@ export default function ClientDocuments({
         useState('All Document Types');
     const [selectedBusiness, setSelectedBusiness] = useState('All Businesses');
     const [selectedStatus, setSelectedStatus] = useState('All Statuses');
-    const queryClient = useQueryClient();
 
     // Fetch documents for this client
     const {
@@ -125,6 +126,11 @@ export default function ClientDocuments({
         downloadDocumentMutation.mutate(documentId);
     };
 
+    const handleEditDocument = (doc: any) => {
+        setSelectedDocument(doc);
+        setShowEditModal(true);
+    };
+
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
     };
@@ -151,6 +157,8 @@ export default function ClientDocuments({
                 matchesType && matchesBusiness && matchesStatus && matchesSearch
             );
         }) || [];
+
+    console.log(filteredDocuments);
 
     const getDocumentIcon = (type: string) => {
         switch (type) {
@@ -212,7 +220,6 @@ export default function ClientDocuments({
     };
 
     const getTagColor = (tag: string) => {
-        debugger;
         switch (tag.toLowerCase()) {
             case 'invoice':
                 return 'bg-blue-100 text-blue-800';
@@ -241,11 +248,60 @@ export default function ClientDocuments({
     };
 
     const formatDate = (dateString: string) => {
-        return new Date(dateString).toLocaleDateString('en-GB', {
-            day: 'numeric',
+        return new Date(dateString).toLocaleDateString('en-US', {
             month: 'short',
+            day: 'numeric',
             year: 'numeric',
         });
+    };
+
+    // Helper function to group documents by month
+    const groupDocumentsByMonth = (docs: any[]) => {
+        const groups: Record<string, any[]> = {};
+
+        if (!docs || !Array.isArray(docs)) {
+            return groups;
+        }
+
+        docs.forEach((doc) => {
+            if (!doc.uploadedAt) return;
+
+            try {
+                const date = new Date(doc.uploadedAt);
+                if (isNaN(date.getTime())) return; // Invalid date
+
+                const monthKey = date.toLocaleDateString('en-US', {
+                    month: 'long',
+                    year: 'numeric',
+                });
+
+                if (monthKey && !groups[monthKey]) {
+                    groups[monthKey] = [];
+                }
+                if (monthKey && groups[monthKey]) {
+                    groups[monthKey]!.push(doc);
+                }
+            } catch (error) {
+                // Skip invalid dates
+                console.warn(
+                    'Invalid date for document:',
+                    doc?.id || 'unknown',
+                    doc?.uploadedAt,
+                );
+            }
+        });
+
+        return groups;
+    };
+
+    // Helper function to get document display name
+    const getDocumentDisplayName = (doc: any) => {
+        return doc.originalFileName || doc.fileName || 'Untitled Document';
+    };
+
+    // Helper function to get document file type for icon
+    const getDocumentFileType = (doc: any) => {
+        return doc.fileType || 'unknown';
     };
 
     return (
@@ -350,8 +406,8 @@ export default function ClientDocuments({
                         <option>Error</option>
                     </select>
                 </div>
-                <div className="flex gap-3">
-                    <Button variant="outline" size="sm">
+                <div className="flex gap-3 ml-3">
+                    <Button variant="outline" size="lg">
                         <Filter className="w-4 h-4 mr-2" />
                         Filters
                     </Button>
@@ -360,7 +416,7 @@ export default function ClientDocuments({
                         businessId={businessId}
                         typeOfBusiness={typeOfBusiness}
                     >
-                        <Button size="sm">
+                        <Button size="lg">
                             <Plus className="w-4 h-4 mr-2" />
                             Upload
                         </Button>
@@ -396,229 +452,200 @@ export default function ClientDocuments({
                 </div>
             ) : (
                 <>
-                    {/* May Documents */}
-                    <div className="text-sm font-semibold text-gray-600 border-b border-gray-200 pb-2 mb-4">
-                        May 2026
-                    </div>
-                    <div className="space-y-0">
-                        {filteredDocuments.slice(0, 3).map((doc) => (
-                            <div
-                                key={doc.id}
-                                className="flex items-center p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
-                                onClick={() => setShowPreviewModal(true)}
-                            >
-                                <div className="w-10 h-10 bg-gray-100 rounded-md flex items-center justify-center mr-4">
-                                    {getDocumentIcon(doc.fileType)}
-                                </div>
-                                <div className="flex-1">
-                                    <div className="font-medium text-gray-900 mb-1">
-                                        {doc.originalFileName}
-                                    </div>
-                                    <div className="flex text-xs text-gray-600 gap-4 flex-wrap">
-                                        <div className="flex items-center">
-                                            <Calendar className="w-3 h-3 mr-1" />
-                                            {formatDate(doc.uploadedAt)}
-                                        </div>
-                                        <div className="flex items-center">
-                                            <Briefcase className="w-3 h-3 mr-1" />
-                                            {doc.businessId || 'All Businesses'}
-                                        </div>
-                                        <div className="flex items-center">
-                                            <User className="w-3 h-3 mr-1" />
-                                            Client Upload
-                                        </div>
-                                        <div className="flex items-center">
-                                            <FileText className="w-3 h-3 mr-1" />
-                                            {formatFileSize(doc.fileSize)}
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2 mt-2">
-                                        {doc.documentType?.map(
-                                            (type: string) => (
-                                                <span
-                                                    key={type}
-                                                    className={`px-2 py-1 text-xs rounded-full ${getTagColor(type)}`}
-                                                >
-                                                    {type}
-                                                </span>
-                                            ),
-                                        )}
-                                        {doc.aiExtractedTransactions && (
-                                            <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">
-                                                {doc.aiExtractedTransactions}{' '}
-                                                transactions
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="flex items-center mr-4">
-                                    <div
-                                        className={`w-2 h-2 rounded-full ${getStatusColor(doc.status)} mr-2`}
-                                    ></div>
-                                    <span
-                                        className={`text-xs font-medium ${getStatusTextColor(doc.status)}`}
-                                    >
-                                        {getStatusText(doc.status)}
-                                    </span>
-                                </div>
-                                <div className="flex gap-1">
-                                    <button
-                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowPreviewModal(true);
-                                        }}
-                                    >
-                                        <Eye className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDownloadDocument(doc.id);
-                                        }}
-                                        disabled={
-                                            downloadDocumentMutation.isPending
-                                        }
-                                    >
-                                        {downloadDocumentMutation.isPending ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <Download className="w-4 h-4" />
-                                        )}
-                                    </button>
-                                    <button
-                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteDocument(doc.id);
-                                        }}
-                                        disabled={
-                                            deleteDocumentMutation.isPending
-                                        }
-                                    >
-                                        {deleteDocumentMutation.isPending ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <MoreVertical className="w-4 h-4" />
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    {/* Dynamic Document Groups by Month */}
+                    {(() => {
+                        const groupedDocuments =
+                            groupDocumentsByMonth(filteredDocuments);
+                        const sortedMonths = Object.keys(groupedDocuments).sort(
+                            (a, b) => {
+                                const dateA = new Date(a);
+                                const dateB = new Date(b);
+                                return dateB.getTime() - dateA.getTime(); // Sort by newest first
+                            },
+                        );
 
-                    {/* April Documents */}
-                    <div className="text-sm font-semibold text-gray-600 border-b border-gray-200 pb-2 mb-4 mt-6">
-                        April 2026
-                    </div>
-                    <div className="space-y-0">
-                        {filteredDocuments.slice(3).map((doc) => (
-                            <div
-                                key={doc.id}
-                                className="flex items-center p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
-                                onClick={() => setShowPreviewModal(true)}
-                            >
-                                <div className="w-10 h-10 bg-gray-100 rounded-md flex items-center justify-center mr-4">
-                                    {getDocumentIcon(doc.fileType)}
-                                </div>
-                                <div className="flex-1">
-                                    <div className="font-medium text-gray-900 mb-1">
-                                        {doc.originalFileName}
+                        return sortedMonths.map((monthKey) =>
+                            monthKey ? (
+                                <div key={monthKey}>
+                                    <div className="text-sm font-semibold text-gray-600 border-b border-gray-200 pb-2 mb-4">
+                                        {monthKey}
                                     </div>
-                                    <div className="flex text-xs text-gray-600 gap-4 flex-wrap">
-                                        <div className="flex items-center">
-                                            <Calendar className="w-3 h-3 mr-1" />
-                                            {formatDate(doc.uploadedAt)}
-                                        </div>
-                                        <div className="flex items-center">
-                                            <Briefcase className="w-3 h-3 mr-1" />
-                                            {doc.businessId || 'All Businesses'}
-                                        </div>
-                                        <div className="flex items-center">
-                                            <User className="w-3 h-3 mr-1" />
-                                            Client Upload
-                                        </div>
-                                        <div className="flex items-center">
-                                            <FileText className="w-3 h-3 mr-1" />
-                                            {formatFileSize(doc.fileSize)}
-                                        </div>
+                                    <div className="space-y-0">
+                                        {groupedDocuments[monthKey]?.map(
+                                            (doc) =>
+                                                doc ? (
+                                                    <div
+                                                        key={doc.id}
+                                                        className="flex items-center p-4 border-b border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer"
+                                                        onClick={() =>
+                                                            setShowPreviewModal(
+                                                                true,
+                                                            )
+                                                        }
+                                                    >
+                                                        <div className="w-10 h-10 bg-gray-100 rounded-md flex items-center justify-center mr-4">
+                                                            {getDocumentIcon(
+                                                                getDocumentFileType(
+                                                                    doc,
+                                                                ),
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="font-medium text-gray-900 mb-1">
+                                                                {getDocumentDisplayName(
+                                                                    doc,
+                                                                )}
+                                                            </div>
+                                                            <div className="flex text-xs text-gray-600 gap-4 flex-wrap">
+                                                                <div className="flex items-center">
+                                                                    <Calendar className="w-3 h-3 mr-1" />
+                                                                    {formatDate(
+                                                                        doc.uploadedAt,
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center">
+                                                                    <Briefcase className="w-3 h-3 mr-1" />
+                                                                    {doc.businessId ||
+                                                                        'All Businesses'}
+                                                                </div>
+                                                                <div className="flex items-center">
+                                                                    <User className="w-3 h-3 mr-1" />
+                                                                    Client
+                                                                    Upload
+                                                                </div>
+                                                                <div className="flex items-center">
+                                                                    <FileText className="w-3 h-3 mr-1" />
+                                                                    {formatFileSize(
+                                                                        doc.fileSize,
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex gap-2 mt-2">
+                                                                {doc
+                                                                    .documentType
+                                                                    .length > 0
+                                                                    ? doc.documentType?.flatMap(
+                                                                          (
+                                                                              type: string,
+                                                                          ) =>
+                                                                              type ? (
+                                                                                  <span
+                                                                                      key={
+                                                                                          type
+                                                                                      }
+                                                                                      className={`px-2 py-1 text-xs rounded-full ${getTagColor(type)}`}
+                                                                                  >
+                                                                                      {
+                                                                                          type
+                                                                                      }
+                                                                                  </span>
+                                                                              ) : (
+                                                                                  []
+                                                                              ),
+                                                                      )
+                                                                    : null}
+                                                                {doc.aiExtractedTransactions &&
+                                                                doc
+                                                                    .aiExtractedTransactions
+                                                                    .length >
+                                                                    0 ? (
+                                                                    <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">
+                                                                        {
+                                                                            doc.aiExtractedTransactions
+                                                                        }{' '}
+                                                                        transactions
+                                                                    </span>
+                                                                ) : null}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center mr-4">
+                                                            <div
+                                                                className={`w-2 h-2 rounded-full ${getStatusColor(doc.status)} mr-2`}
+                                                            ></div>
+                                                            <span
+                                                                className={`text-xs font-medium ${getStatusTextColor(doc.status)}`}
+                                                            >
+                                                                {getStatusText(
+                                                                    doc.status,
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex gap-1">
+                                                            <button
+                                                                className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                                                                onClick={(
+                                                                    e,
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    setShowPreviewModal(
+                                                                        true,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <Eye className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                                                                onClick={(
+                                                                    e,
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    handleDownloadDocument(
+                                                                        doc.id,
+                                                                    );
+                                                                }}
+                                                                disabled={
+                                                                    downloadDocumentMutation.isPending
+                                                                }
+                                                            >
+                                                                {downloadDocumentMutation.isPending ? (
+                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                ) : (
+                                                                    <Download className="w-4 h-4" />
+                                                                )}
+                                                            </button>
+                                                            <button
+                                                                className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                                                                onClick={(
+                                                                    e,
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    handleEditDocument(
+                                                                        doc,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
+                                                                onClick={(
+                                                                    e,
+                                                                ) => {
+                                                                    e.stopPropagation();
+                                                                    handleDeleteDocument(
+                                                                        doc.id,
+                                                                    );
+                                                                }}
+                                                                disabled={
+                                                                    deleteDocumentMutation.isPending
+                                                                }
+                                                            >
+                                                                {deleteDocumentMutation.isPending ? (
+                                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                                ) : (
+                                                                    <MoreVertical className="w-4 h-4" />
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : null,
+                                        )}
                                     </div>
-                                    <div className="flex gap-2 mt-2">
-                                        {doc.documentType?.map(
-                                            (type: string) => (
-                                                <span
-                                                    key={type}
-                                                    className={`px-2 py-1 text-xs rounded-full ${getTagColor(type)}`}
-                                                >
-                                                    {type}
-                                                </span>
-                                            ),
-                                        )}
-                                        {doc.aiExtractedTransactions && (
-                                            <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">
-                                                {doc.aiExtractedTransactions}{' '}
-                                                transactions
-                                            </span>
-                                        )}
-                                    </div>
                                 </div>
-                                <div className="flex items-center mr-4">
-                                    <div
-                                        className={`w-2 h-2 rounded-full ${getStatusColor(doc.status)} mr-2`}
-                                    ></div>
-                                    <span
-                                        className={`text-xs font-medium ${getStatusTextColor(doc.status)}`}
-                                    >
-                                        {getStatusText(doc.status)}
-                                    </span>
-                                </div>
-                                <div className="flex gap-1">
-                                    <button
-                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowPreviewModal(true);
-                                        }}
-                                    >
-                                        <Eye className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDownloadDocument(doc.id);
-                                        }}
-                                        disabled={
-                                            downloadDocumentMutation.isPending
-                                        }
-                                    >
-                                        {downloadDocumentMutation.isPending ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <Download className="w-4 h-4" />
-                                        )}
-                                    </button>
-                                    <button
-                                        className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleDeleteDocument(doc.id);
-                                        }}
-                                        disabled={
-                                            deleteDocumentMutation.isPending
-                                        }
-                                    >
-                                        {deleteDocumentMutation.isPending ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <MoreVertical className="w-4 h-4" />
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ) : null,
+                        );
+                    })()}
                 </>
             )}
 
@@ -771,6 +798,211 @@ export default function ClientDocuments({
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Document Modal */}
+            {showEditModal && selectedDocument && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg w-11/12 max-w-2xl max-h-[90vh] overflow-hidden">
+                        <div className="flex justify-between items-center p-6 border-b border-gray-200">
+                            <h3 className="text-xl font-semibold text-gray-900 flex items-center">
+                                <Edit className="w-6 h-6 mr-2" />
+                                Edit Document
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    setShowEditModal(false);
+                                    setSelectedDocument(null);
+                                }}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            <div className="space-y-6">
+                                {/* Document Preview */}
+                                <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                                    <div className="w-12 h-12 bg-gray-100 rounded-md flex items-center justify-center">
+                                        {getDocumentIcon(
+                                            getDocumentFileType(
+                                                selectedDocument,
+                                            ),
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="font-medium text-gray-900">
+                                            {getDocumentDisplayName(
+                                                selectedDocument,
+                                            )}
+                                        </div>
+                                        <div className="text-sm text-gray-600">
+                                            {formatFileSize(
+                                                selectedDocument.fileSize,
+                                            )}{' '}
+                                            •{' '}
+                                            {formatDate(
+                                                selectedDocument.uploadedAt,
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Edit Form */}
+                                <div className="space-y-4">
+                                    {/* File Name */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            File Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            defaultValue={getDocumentDisplayName(
+                                                selectedDocument,
+                                            )}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Enter file name"
+                                        />
+                                    </div>
+
+                                    {/* Document Type */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Document Type
+                                        </label>
+                                        <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <option value="invoice">
+                                                Invoice
+                                            </option>
+                                            <option value="receipt">
+                                                Receipt
+                                            </option>
+                                            <option value="bank-statement">
+                                                Bank Statement
+                                            </option>
+                                            <option value="tax-document">
+                                                Tax Document
+                                            </option>
+                                            <option value="expense">
+                                                Expense
+                                            </option>
+                                            <option value="income">
+                                                Income
+                                            </option>
+                                        </select>
+                                    </div>
+
+                                    {/* Business Assignment */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Business Assignment
+                                        </label>
+                                        <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <option value="">
+                                                All Businesses
+                                            </option>
+                                            <option value="consulting">
+                                                Consulting (Self-Employed)
+                                            </option>
+                                            <option value="property">
+                                                Property Rental
+                                            </option>
+                                            <option value="foreign">
+                                                Foreign Income
+                                            </option>
+                                        </select>
+                                    </div>
+
+                                    {/* Status */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Status
+                                        </label>
+                                        <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                            <option value="pending">
+                                                Pending
+                                            </option>
+                                            <option value="processed">
+                                                Processed
+                                            </option>
+                                            <option value="approved">
+                                                Approved
+                                            </option>
+                                            <option value="error">Error</option>
+                                            <option value="rejected">
+                                                Rejected
+                                            </option>
+                                        </select>
+                                    </div>
+
+                                    {/* Tags */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Tags
+                                        </label>
+                                        <div className="flex flex-wrap gap-2 p-3 border border-gray-300 rounded-md min-h-[40px]">
+                                            {selectedDocument.documentType?.map(
+                                                (type: string) => (
+                                                    <span
+                                                        key={type}
+                                                        className={`px-2 py-1 text-xs rounded-full ${getTagColor(type)} flex items-center`}
+                                                    >
+                                                        {type}
+                                                        <button className="ml-1 text-gray-500 hover:text-gray-700">
+                                                            <X className="w-3 h-3" />
+                                                        </button>
+                                                    </span>
+                                                ),
+                                            )}
+                                            <button className="text-blue-600 text-sm hover:text-blue-700">
+                                                + Add Tag
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Notes */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Notes
+                                        </label>
+                                        <textarea
+                                            rows={3}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Add notes about this document..."
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Actions */}
+                        <div className="flex justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+                            <Button
+                                variant="outline"
+                                onClick={() => {
+                                    setShowEditModal(false);
+                                    setSelectedDocument(null);
+                                }}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    // Handle save logic here
+                                    toast.success(
+                                        'Document updated successfully',
+                                    );
+                                    setShowEditModal(false);
+                                    setSelectedDocument(null);
+                                    refetchDocuments();
+                                }}
+                            >
+                                Save Changes
+                            </Button>
                         </div>
                     </div>
                 </div>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 
 import {
@@ -48,8 +49,6 @@ type UploadedFile = {
 const uploadDocumentSchema = z.object({
     clientId: z.string().min(1),
     businessId: z.string().optional(),
-    documentType: z.string().min(1),
-    folderId: z.string().optional(),
 });
 
 const updateTransactionSchema = z.object({
@@ -96,8 +95,6 @@ export class DocumentsController {
                 },
                 clientId: { type: 'string' },
                 businessId: { type: 'string' },
-                documentType: { type: 'string' },
-                folderId: { type: 'string' },
             },
         },
     })
@@ -108,8 +105,7 @@ export class DocumentsController {
         @Body(new ZodValidationPipe(uploadDocumentSchema))
         body: {
             clientId: string;
-            businessId?: string;
-            documentType: string;
+            businessId: string;
             folderId?: string;
         },
     ) {
@@ -122,7 +118,6 @@ export class DocumentsController {
             clientId: body.clientId,
             businessId: body.businessId,
             file: file.buffer.toString('base64'),
-            documentType: body.documentType,
             folderId: body.folderId,
         });
     }
@@ -501,13 +496,13 @@ export class DocumentsController {
         );
     }
 
-    @Post('documents-with-transactions')
+    @Post(':id/documents-with-transactions')
     @ApiOperation({ summary: 'Upload a document with transactions' })
     async uploadDocumentWithTransactions(
         @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
         @Body()
         body: {
-            documentUrl: string;
             transactions: any[];
             clientId: string;
             businessId: string;
@@ -515,7 +510,7 @@ export class DocumentsController {
     ) {
         return this.documentsService.uploadDocumentWithTransactions(
             req.user.userId,
-            body.documentUrl,
+            id,
             body.clientId,
             body.businessId,
             body.transactions,

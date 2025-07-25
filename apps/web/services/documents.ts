@@ -404,10 +404,12 @@ export const documentsService = {
         businessId,
         documentUrl,
         transactions,
+        documentId,
     }: {
         clientId: string;
         businessId: string;
         documentUrl: string;
+        documentId: string;
         transactions: Array<{
             transactionDate: string;
             description: string;
@@ -421,7 +423,7 @@ export const documentsService = {
         }>;
     }): Promise<any> => {
         const response = await api.post(
-            '/documents/documents-with-transactions',
+            `/documents/${documentId}/documents-with-transactions`,
             {
                 documentUrl,
                 clientId,

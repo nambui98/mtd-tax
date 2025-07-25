@@ -27,7 +27,6 @@ export interface UploadDocumentDto {
     clientId: string; // This will be a UUID string
     businessId?: string;
     file: string;
-    documentType: string;
     folderId?: string;
 }
 
@@ -78,8 +77,7 @@ export class DocumentsService {
     ) {}
 
     async uploadDocument(dto: UploadDocumentDto): Promise<any> {
-        const { userId, clientId, businessId, file, documentType, folderId } =
-            dto;
+        const { userId, clientId, businessId, file } = dto;
 
         try {
             // Upload file to S3
@@ -95,16 +93,20 @@ export class DocumentsService {
                 .values({
                     userId,
                     clientId,
+                    fileName: s3Result.key,
+                    originalFileName: s3Result.key,
+                    fileSize: s3Result.size,
+                    fileType: s3Result.etag,
+                    mimeType: s3Result.etag,
                     businessId: businessId || null,
                     filePath: s3Result.url,
-                    documentType: [documentType], // ensure array type
                     status: 'uploaded',
                     processingStatus: 'pending',
                 })
                 .returning();
 
             // Start AI processing in background
-            await this.processDocumentWithAI(document.id);
+            // await this.processDocumentWithAI(document.id);
 
             return {
                 id: document.id,
@@ -316,6 +318,11 @@ export class DocumentsService {
                 userId: documentsTable.userId,
                 clientId: documentsTable.clientId,
                 businessId: documentsTable.businessId,
+                filePath: documentsTable.filePath,
+                originalFileName: documentsTable.originalFileName,
+                fileSize: documentsTable.fileSize,
+                fileType: documentsTable.fileType,
+                mimeType: documentsTable.mimeType,
                 documentType: documentsTable.documentType,
                 status: documentsTable.status,
                 processingStatus: documentsTable.processingStatus,
@@ -903,9 +910,11 @@ export class DocumentsService {
             const documentTypes = Array.isArray(doc.documentType)
                 ? doc.documentType
                 : [doc.documentType];
-            documentTypes.forEach((type) => {
-                stats.byDocumentType[type] =
-                    (stats.byDocumentType[type] || 0) + 1;
+            documentTypes?.forEach((type) => {
+                if (type) {
+                    stats.byDocumentType[type] =
+                        (stats.byDocumentType[type] || 0) + 1;
+                }
             });
         });
 
@@ -937,7 +946,7 @@ export class DocumentsService {
 
     async uploadDocumentWithTransactions(
         userId: string,
-        documentUrl: string,
+        documentId: string,
         clientId: string,
         businessId: string,
         transactions: Array<{
@@ -964,17 +973,13 @@ export class DocumentsService {
         const result = await this.db.transaction(async (tx) => {
             // Create document
             const [document] = await tx
-                .insert(documentsTable)
-                .values({
-                    userId,
-                    clientId,
-                    businessId: businessId || null,
-                    filePath: documentUrl,
-                    documentType: documentType,
+                .update(documentsTable)
+                .set({
                     status: 'uploaded',
                     processingStatus: 'pending',
-                    uploadedAt: new Date(),
+                    documentType: documentType,
                 })
+                .where(eq(documentsTable.id, documentId))
                 .returning();
 
             // Convert transactions to database format

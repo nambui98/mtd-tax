@@ -128,7 +128,6 @@ export const authService = {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         refreshToken: token.refreshToken,
-                        email: token.user.email,
                     }),
                 },
             );
@@ -137,11 +136,12 @@ export const authService = {
             if (!response.ok) {
                 throw new Error('Failed to refresh token');
             }
+
             return {
                 ...token,
-                accessToken: data.tokens.accessToken,
-                refreshToken: data.tokens.refreshToken || token.refreshToken, // Use new refresh token if provided
-                expiresAt: Date.now() + data.tokens.expiresIn * 1000,
+                accessToken: data.access_token,
+                refreshToken: data.refresh_token || token.refreshToken, // Use new refresh token if provided
+                expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
             };
         } catch (error) {
             console.error('Error refreshing access token', error);
