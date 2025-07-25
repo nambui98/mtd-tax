@@ -500,4 +500,25 @@ export class DocumentsController {
             body.reason,
         );
     }
+
+    @Post('documents-with-transactions')
+    @ApiOperation({ summary: 'Upload a document with transactions' })
+    async uploadDocumentWithTransactions(
+        @Request() req: { user: { userId: string } },
+        @Body()
+        body: {
+            documentUrl: string;
+            transactions: any[];
+            clientId: string;
+            businessId: string;
+        },
+    ) {
+        return this.documentsService.uploadDocumentWithTransactions(
+            req.user.userId,
+            body.documentUrl,
+            body.clientId,
+            body.businessId,
+            body.transactions,
+        );
+    }
 }

@@ -177,18 +177,20 @@ export default function ClientContent({ clientId }: Props) {
                     }
                 />
             )}
-
-            {/* Authorization Status */}
-            <HmrcAuthStatus
-                clientId={clientId}
-                invitationId={client?.invitationId as string}
-            />
-
-            {/* HMRC Businesses */}
-            <HmrcBusinesses
-                businesses={hmrcBusinesses?.businesses.listOfBusinesses || []}
-                isLoadingHmrcBusinesses={isLoadingHmrcBusinesses}
-            />
+            {activeTab === 'overview' && (
+                <>
+                    <HmrcAuthStatus
+                        clientId={clientId}
+                        invitationId={client?.invitationId as string}
+                    />
+                    <HmrcBusinesses
+                        businesses={
+                            hmrcBusinesses?.businesses.listOfBusinesses || []
+                        }
+                        isLoadingHmrcBusinesses={isLoadingHmrcBusinesses}
+                    />
+                </>
+            )}
         </div>
     );
 }

@@ -90,37 +90,24 @@ export class DocumentsService {
             );
 
             // Create document record in database
-            const documentId = randomUUID();
             const [document] = await this.db
                 .insert(documentsTable)
                 .values({
-                    id: documentId,
                     userId,
                     clientId,
                     businessId: businessId || null,
-                    fileName: s3Result.key,
-                    originalFileName: 'uploaded-file',
-                    fileSize: s3Result.size,
-                    fileType: 'unknown',
-                    mimeType: 'application/octet-stream',
                     filePath: s3Result.url,
-                    documentType,
+                    documentType: [documentType], // ensure array type
                     status: 'uploaded',
                     processingStatus: 'pending',
-                    uploadedAt: new Date(),
                 })
                 .returning();
 
             // Start AI processing in background
-            await this.processDocumentWithAI(documentId);
+            await this.processDocumentWithAI(document.id);
 
             return {
                 id: document.id,
-                originalFileName: document.originalFileName,
-                fileName: document.fileName,
-                filePath: document.filePath,
-                fileSize: document.fileSize,
-                mimeType: document.mimeType,
                 documentType: document.documentType,
                 status: document.status,
                 processingStatus: document.processingStatus,
@@ -296,7 +283,7 @@ export class DocumentsService {
         }
         if (filters.documentType) {
             conditions.push(
-                eq(documentsTable.documentType, filters.documentType),
+                inArray(documentsTable.documentType, [[filters.documentType]]),
             );
         }
         if (filters.status) {
@@ -309,7 +296,7 @@ export class DocumentsService {
         }
         if (filters.search) {
             conditions.push(
-                like(documentsTable.originalFileName, `%${filters.search}%`),
+                like(documentsTable.filePath, `%${filters.search}%`),
             );
         }
         if (filters.dateFrom) {
@@ -329,11 +316,6 @@ export class DocumentsService {
                 userId: documentsTable.userId,
                 clientId: documentsTable.clientId,
                 businessId: documentsTable.businessId,
-                fileName: documentsTable.fileName,
-                originalFileName: documentsTable.originalFileName,
-                fileSize: documentsTable.fileSize,
-                fileType: documentsTable.fileType,
-                mimeType: documentsTable.mimeType,
                 documentType: documentsTable.documentType,
                 status: documentsTable.status,
                 processingStatus: documentsTable.processingStatus,
@@ -909,10 +891,22 @@ export class DocumentsService {
 
         documents.forEach((doc) => {
             stats.byStatus[doc.status] = (stats.byStatus[doc.status] || 0) + 1;
-            stats.byProcessingStatus[doc.processingStatus] =
-                (stats.byProcessingStatus[doc.processingStatus] || 0) + 1;
-            stats.byDocumentType[doc.documentType] =
-                (stats.byDocumentType[doc.documentType] || 0) + 1;
+            // Handle possible array values for processingStatus and documentType
+            const processingStatuses = Array.isArray(doc.processingStatus)
+                ? doc.processingStatus
+                : [doc.processingStatus];
+            processingStatuses.forEach((status) => {
+                stats.byProcessingStatus[status] =
+                    (stats.byProcessingStatus[status] || 0) + 1;
+            });
+
+            const documentTypes = Array.isArray(doc.documentType)
+                ? doc.documentType
+                : [doc.documentType];
+            documentTypes.forEach((type) => {
+                stats.byDocumentType[type] =
+                    (stats.byDocumentType[type] || 0) + 1;
+            });
         });
 
         // Get transaction stats
@@ -939,5 +933,93 @@ export class DocumentsService {
         );
 
         return stats;
+    }
+
+    async uploadDocumentWithTransactions(
+        userId: string,
+        documentUrl: string,
+        clientId: string,
+        businessId: string,
+        transactions: Array<{
+            transactionDate: string;
+            description: string;
+            category: string;
+            amount: number;
+            currency?: string;
+            isAIGenerated?: boolean;
+            aiConfidence?: number;
+            notes?: string;
+            type?: string;
+        }>,
+    ): Promise<any> {
+        if (!transactions.length) {
+            throw new BadRequestException('No transactions to approve');
+        }
+
+        const documentType = transactions.map(
+            (transaction) => transaction.type || 'transaction',
+        );
+
+        // Create document and transactions in a transaction
+        const result = await this.db.transaction(async (tx) => {
+            // Create document
+            const [document] = await tx
+                .insert(documentsTable)
+                .values({
+                    userId,
+                    clientId,
+                    businessId: businessId || null,
+                    filePath: documentUrl,
+                    documentType: documentType,
+                    status: 'uploaded',
+                    processingStatus: 'pending',
+                    uploadedAt: new Date(),
+                })
+                .returning();
+
+            // Convert transactions to database format
+            const transactionsToInsert = transactions.map((transaction) => ({
+                documentId: document.id,
+                userId,
+                clientId,
+                businessId: businessId || null,
+                transactionDate: transaction.transactionDate,
+                description: transaction.description,
+                category: transaction.category,
+                amount: transaction.amount.toString(),
+                currency: transaction.currency || 'GBP',
+                status: 'approved',
+                isAIGenerated: transaction.isAIGenerated || false,
+                aiConfidence: (transaction.aiConfidence || 0).toString(),
+                notes: transaction.notes,
+            }));
+
+            // Insert transactions
+            const insertedTransactions = await tx
+                .insert(documentTransactionsTable)
+                .values(transactionsToInsert)
+                .returning();
+
+            // Update document status
+            await tx
+                .update(documentsTable)
+                .set({
+                    status: 'processed',
+                    processingStatus: 'completed',
+                    aiExtractedTransactions: insertedTransactions.length,
+                })
+                .where(eq(documentsTable.id, document.id));
+
+            return {
+                document,
+                insertedTransactions,
+            };
+        });
+
+        return {
+            approvedCount: result.insertedTransactions.length,
+            transactions: result.insertedTransactions,
+            documentId: result.document.id,
+        };
     }
 }

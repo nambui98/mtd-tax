@@ -463,7 +463,9 @@ export default function DocumentsContent() {
                         >
                             <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between">
-                                    {getDocumentIcon(document.documentType)}
+                                    {document.documentType.map((type: string) =>
+                                        getDocumentIcon(type),
+                                    )}
                                     <div className="flex gap-1">
                                         <Button variant="ghost" size="sm">
                                             <Eye className="w-4 h-4" />
@@ -534,8 +536,9 @@ export default function DocumentsContent() {
                                 >
                                     <TableCell>
                                         <div className="flex items-center gap-3">
-                                            {getDocumentIcon(
-                                                document.documentType,
+                                            {document.documentType.map(
+                                                (type: string) =>
+                                                    getDocumentIcon(type),
                                             )}
                                             <div>
                                                 <p className="font-medium">

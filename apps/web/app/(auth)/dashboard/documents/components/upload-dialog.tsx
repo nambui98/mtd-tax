@@ -533,6 +533,38 @@ export default function UploadDialog({
         },
     });
 
+    const uploadDocumentWithTransactionsMutation = useMutation({
+        mutationFn: ({
+            clientId,
+            businessId,
+            documentUrl,
+            transactions,
+        }: {
+            clientId: string;
+            businessId: string;
+            documentUrl: string;
+            transactions: any[];
+        }) =>
+            documentsService.uploadDocumentWithTransactions({
+                clientId,
+                businessId,
+                documentUrl,
+                transactions,
+            }),
+        onSuccess: () => {
+            toast.success(
+                `${tempTransactions.length} transactions approved and saved to database`,
+            );
+            setIsOpenDialog(false);
+            setTempTransactions([]);
+        },
+        onError: (error: any) => {
+            toast.error(
+                `Failed to upload document with transactions: ${error.message}`,
+            );
+        },
+    });
+
     const handleFileUpload = async (file: File | undefined) => {
         if (file) {
             setUploadedFile(file);
@@ -614,11 +646,13 @@ export default function UploadDialog({
     };
 
     const handleApproveAll = async () => {
-        // if (uploadData?.s3Url) {
-        //     approveAllMutation.mutate(uploadData.s3Url);
-        // }
         if (tempTransactions.length === 0) {
             toast.error('No temporary transactions to approve');
+            return;
+        }
+
+        if (!uploadData?.s3Url) {
+            toast.error('No document uploaded');
             return;
         }
 
@@ -633,23 +667,20 @@ export default function UploadDialog({
                 isAIGenerated: temp.isAIGenerated || false,
                 aiConfidence: temp.aiConfidence || 0,
                 notes: temp.notes,
+                type: 'transaction', // Add type for the new API
             }));
 
-            // Save to database
-            await documentsService.createBulkTransactions(
-                uploadData?.documentId || '',
-                transactionsToSave,
-            );
+            // Save to database using the new API endpoint
+            uploadDocumentWithTransactionsMutation.mutate({
+                clientId: clientId!,
+                businessId: businessId!,
+                documentUrl: uploadData.s3Url,
+                transactions: transactionsToSave,
+            });
 
             // Clear temp transactions
-            setTempTransactions([]);
-            toast.success(
-                `${transactionsToSave.length} temporary transactions approved and saved`,
-            );
         } catch (error: any) {
-            toast.error(
-                `Failed to approve temporary transactions: ${error.message}`,
-            );
+            toast.error(`Failed to approve transactions: ${error.message}`);
         }
     };
 
@@ -1335,17 +1366,33 @@ export default function UploadDialog({
                                     className="text-xs px-3 py-1.5"
                                     onClick={handleApproveAll}
                                     disabled={
-                                        approveAllMutation.isPending ||
+                                        uploadDocumentWithTransactionsMutation.isPending ||
                                         tempTransactions.length === 0
                                     }
                                 >
-                                    {approveAllMutation.isPending ? (
+                                    {uploadDocumentWithTransactionsMutation.isPending ? (
                                         <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                                     ) : (
                                         <Check className="w-3 h-3 mr-1" />
                                     )}
-                                    Approve All
+                                    Approve All ({tempTransactions.length})
                                 </Button>
+                                {tempTransactions.length > 0 && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-xs px-3 py-1.5"
+                                        onClick={() => {
+                                            setTempTransactions([]);
+                                            toast.success(
+                                                'Temporary transactions cleared',
+                                            );
+                                        }}
+                                    >
+                                        <Trash className="w-3 h-3 mr-1" />
+                                        Clear Temp
+                                    </Button>
+                                )}
                             </div>
                         </div>
 

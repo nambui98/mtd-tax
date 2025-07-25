@@ -11,7 +11,7 @@ export interface Document {
     fileType: string;
     mimeType: string;
     filePath: string;
-    documentType: string;
+    documentType: string[];
     status: string;
     processingStatus: string;
     aiExtractedTransactions: number;
@@ -396,6 +396,39 @@ export const documentsService = {
         documentId: string,
     ): Promise<{ downloadUrl: string }> => {
         const response = await api.get(`/documents/${documentId}/download-url`);
+        return response.data.data;
+    },
+
+    uploadDocumentWithTransactions: async ({
+        clientId,
+        businessId,
+        documentUrl,
+        transactions,
+    }: {
+        clientId: string;
+        businessId: string;
+        documentUrl: string;
+        transactions: Array<{
+            transactionDate: string;
+            description: string;
+            category: string;
+            amount: number;
+            currency?: string;
+            isAIGenerated?: boolean;
+            aiConfidence?: number;
+            notes?: string;
+            type?: string;
+        }>;
+    }): Promise<any> => {
+        const response = await api.post(
+            '/documents/documents-with-transactions',
+            {
+                documentUrl,
+                clientId,
+                businessId,
+                transactions,
+            },
+        );
         return response.data.data;
     },
 };

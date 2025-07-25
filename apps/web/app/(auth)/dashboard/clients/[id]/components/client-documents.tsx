@@ -132,21 +132,23 @@ export default function ClientDocuments({
     // Filter documents based on search and filters
     const filteredDocuments =
         documents?.filter((doc) => {
-            const matchesSearch = doc.originalFileName
-                .toLowerCase()
-                .includes(searchTerm.toLowerCase());
             const matchesType =
                 selectedDocumentType === 'All Document Types' ||
-                doc.documentType === selectedDocumentType;
+                doc.documentType.includes(selectedDocumentType.toLowerCase());
             const matchesBusiness =
                 selectedBusiness === 'All Businesses' ||
                 doc.businessId === selectedBusiness;
             const matchesStatus =
                 selectedStatus === 'All Statuses' ||
                 doc.status === selectedStatus;
+            const matchesSearch =
+                searchTerm === '' ||
+                doc.originalFileName
+                    .toLowerCase()
+                    .includes(searchTerm.toLowerCase());
 
             return (
-                matchesSearch && matchesType && matchesBusiness && matchesStatus
+                matchesType && matchesBusiness && matchesStatus && matchesSearch
             );
         }) || [];
 
@@ -210,6 +212,7 @@ export default function ClientDocuments({
     };
 
     const getTagColor = (tag: string) => {
+        debugger;
         switch (tag.toLowerCase()) {
             case 'invoice':
                 return 'bg-blue-100 text-blue-800';
@@ -430,11 +433,16 @@ export default function ClientDocuments({
                                         </div>
                                     </div>
                                     <div className="flex gap-2 mt-2">
-                                        <span
-                                            className={`px-2 py-1 text-xs rounded-full ${getTagColor(doc.documentType)}`}
-                                        >
-                                            {doc.documentType}
-                                        </span>
+                                        {doc.documentType?.map(
+                                            (type: string) => (
+                                                <span
+                                                    key={type}
+                                                    className={`px-2 py-1 text-xs rounded-full ${getTagColor(type)}`}
+                                                >
+                                                    {type}
+                                                </span>
+                                            ),
+                                        )}
                                         {doc.aiExtractedTransactions && (
                                             <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">
                                                 {doc.aiExtractedTransactions}{' '}
@@ -537,11 +545,16 @@ export default function ClientDocuments({
                                         </div>
                                     </div>
                                     <div className="flex gap-2 mt-2">
-                                        <span
-                                            className={`px-2 py-1 text-xs rounded-full ${getTagColor(doc.documentType)}`}
-                                        >
-                                            {doc.documentType}
-                                        </span>
+                                        {doc.documentType?.map(
+                                            (type: string) => (
+                                                <span
+                                                    key={type}
+                                                    className={`px-2 py-1 text-xs rounded-full ${getTagColor(type)}`}
+                                                >
+                                                    {type}
+                                                </span>
+                                            ),
+                                        )}
                                         {doc.aiExtractedTransactions && (
                                             <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800">
                                                 {doc.aiExtractedTransactions}{' '}
