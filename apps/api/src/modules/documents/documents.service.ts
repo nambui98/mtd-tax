@@ -961,30 +961,27 @@ export class DocumentsService {
             type?: string;
         }>,
     ): Promise<any> {
-        if (!transactions.length) {
-            throw new BadRequestException('No transactions to approve');
+        // First, verify the document exists and belongs to the user
+        const document = await this.db
+            .select()
+            .from(documentsTable)
+            .where(
+                and(
+                    eq(documentsTable.id, documentId),
+                    eq(documentsTable.userId, userId),
+                ),
+            )
+            .limit(1);
+
+        if (!document.length) {
+            throw new NotFoundException('Document not found');
         }
 
-        const documentType = transactions.map(
-            (transaction) => transaction.type || 'transaction',
-        );
-
-        // Create document and transactions in a transaction
-        const result = await this.db.transaction(async (tx) => {
-            // Create document
-            const [document] = await tx
-                .update(documentsTable)
-                .set({
-                    status: 'uploaded',
-                    processingStatus: 'pending',
-                    documentType: documentType,
-                })
-                .where(eq(documentsTable.id, documentId))
-                .returning();
-
-            // Convert transactions to database format
-            const transactionsToInsert = transactions.map((transaction) => ({
-                documentId: document.id,
+        // Create transactions
+        const createdTransactions = [];
+        for (const transaction of transactions) {
+            const transactionData = {
+                documentId,
                 userId,
                 clientId,
                 businessId: businessId || null,
@@ -995,36 +992,133 @@ export class DocumentsService {
                 currency: transaction.currency || 'GBP',
                 status: 'approved',
                 isAIGenerated: transaction.isAIGenerated || false,
-                aiConfidence: (transaction.aiConfidence || 0).toString(),
+                aiConfidence: (transaction.aiConfidence || 0.0).toString(),
                 notes: transaction.notes,
-            }));
+            };
 
-            // Insert transactions
-            const insertedTransactions = await tx
+            const [createdTransaction] = await this.db
                 .insert(documentTransactionsTable)
-                .values(transactionsToInsert)
+                .values(transactionData)
                 .returning();
 
-            // Update document status
-            await tx
-                .update(documentsTable)
-                .set({
-                    status: 'processed',
-                    processingStatus: 'completed',
-                    aiExtractedTransactions: insertedTransactions.length,
-                })
-                .where(eq(documentsTable.id, document.id));
+            createdTransactions.push(createdTransaction);
+        }
 
-            return {
-                document,
-                insertedTransactions,
-            };
-        });
+        return createdTransactions;
+    }
 
-        return {
-            approvedCount: result.insertedTransactions.length,
-            transactions: result.insertedTransactions,
-            documentId: result.document.id,
-        };
+    async updateDocumentTransactions(
+        documentId: string,
+        transactions: Array<{
+            id?: string;
+            transactionDate?: string;
+            description?: string;
+            category?: string;
+            amount?: number;
+            currency?: string;
+            status?: string;
+            notes?: string;
+            type?: string;
+        }>,
+        userId: string,
+    ): Promise<any[]> {
+        // First, verify the document exists and belongs to the user
+        const document = await this.db
+            .select()
+            .from(documentsTable)
+            .where(
+                and(
+                    eq(documentsTable.id, documentId),
+                    eq(documentsTable.userId, userId),
+                ),
+            )
+            .limit(1);
+
+        if (!document.length) {
+            throw new NotFoundException('Document not found');
+        }
+
+        const resultTransactions = [];
+
+        for (const transaction of transactions) {
+            if (transaction.id) {
+                // Update existing transaction
+                const updateData: any = {};
+
+                if (transaction.transactionDate !== undefined) {
+                    updateData.transactionDate = transaction.transactionDate;
+                }
+                if (transaction.description !== undefined) {
+                    updateData.description = transaction.description;
+                }
+                if (transaction.category !== undefined) {
+                    updateData.category = transaction.category;
+                }
+                if (transaction.amount !== undefined) {
+                    updateData.amount = transaction.amount.toString();
+                }
+                if (transaction.currency !== undefined) {
+                    updateData.currency = transaction.currency;
+                }
+                if (transaction.status !== undefined) {
+                    updateData.status = transaction.status;
+                }
+                if (transaction.notes !== undefined) {
+                    updateData.notes = transaction.notes;
+                }
+                if (transaction.type !== undefined) {
+                    updateData.type = transaction.type;
+                }
+
+                const [updatedTransaction] = await this.db
+                    .update(documentTransactionsTable)
+                    .set(updateData)
+                    .where(
+                        and(
+                            eq(documentTransactionsTable.id, transaction.id),
+                            eq(
+                                documentTransactionsTable.documentId,
+                                documentId,
+                            ),
+                            eq(documentTransactionsTable.userId, userId),
+                        ),
+                    )
+                    .returning();
+
+                if (updatedTransaction) {
+                    resultTransactions.push(updatedTransaction);
+                }
+            } else {
+                // Create new transaction
+                const transactionData = {
+                    documentId,
+                    userId,
+                    clientId: document[0].clientId,
+                    businessId: document[0].businessId,
+                    transactionDate:
+                        transaction.transactionDate ||
+                        new Date().toISOString().split('T')[0],
+                    description: transaction.description || '',
+                    category: transaction.category || '',
+                    amount: (transaction.amount || 0).toString(),
+                    currency: transaction.currency || 'GBP',
+                    status: transaction.status || 'pending',
+                    isAIGenerated: false,
+                    aiConfidence: '0.00',
+                    notes: transaction.notes,
+                };
+
+                const [createdTransaction] = await this.db
+                    .insert(documentTransactionsTable)
+                    .values(transactionData)
+                    .returning();
+
+                if (createdTransaction) {
+                    resultTransactions.push(createdTransaction);
+                }
+            }
+        }
+
+        return resultTransactions;
     }
 }

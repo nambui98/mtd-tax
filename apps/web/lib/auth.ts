@@ -133,7 +133,6 @@ export const authOptions = {
             if (token.expiresAt && now < token.expiresAt) {
                 return token;
             }
-
             // Token has expired, try to refresh it
             if (token.refreshToken) {
                 return await authService.refreshAccessToken(token);
@@ -148,8 +147,6 @@ export const authOptions = {
             session: Record<string, any>;
             token: Record<string, any>;
         }) {
-            console.log('session', session);
-            console.log('token', token);
             session.accessToken = token.accessToken;
             session.refreshToken = token.refreshToken;
             session.expiresAt = token.expiresAt;
@@ -163,6 +160,6 @@ export const authOptions = {
     },
     session: {
         strategy: 'jwt' as SessionStrategy,
-        maxAge: 30 * 24 * 60 * 60,
+        maxAge: 1 * 60 * 60,
     },
 };

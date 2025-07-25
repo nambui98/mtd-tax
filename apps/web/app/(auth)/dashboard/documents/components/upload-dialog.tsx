@@ -63,7 +63,7 @@ import {
 import { Badge } from '@workspace/ui/components/badge';
 import { Progress } from '@workspace/ui/components/progress';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { documentsService } from '@/services/documents';
+import { DocumentTransaction, documentsService } from '@/services/documents';
 import { uploadService, type FileValidationResult } from '@/services/upload';
 import { toast } from 'sonner';
 import { TypeOfBusiness } from '@/types/document';
@@ -82,6 +82,7 @@ type Props = {
     clientId?: string;
     businessId?: string;
     typeOfBusiness?: TypeOfBusiness;
+    editDocument?: any; // Add support for editing existing documents
 };
 
 type TransactionCategory = {
@@ -267,7 +268,7 @@ function AddTransactionForm({
 }
 
 type EditTransactionFormProps = {
-    transaction: Transaction;
+    transaction: DocumentTransaction;
     onSave: (id: string, transaction: any) => void;
     onCancel: () => void;
     transactionCategories: TransactionCategory[];
@@ -280,6 +281,7 @@ function EditTransactionForm({
     transactionCategories,
 }: EditTransactionFormProps) {
     const [formData, setFormData] = useState({
+        ...transaction,
         transactionDate: transaction.transactionDate,
         description: transaction.description,
         category: transaction.category,
@@ -303,7 +305,7 @@ function EditTransactionForm({
             notes: transaction.notes,
         };
 
-        onSave(transaction.id, updatedTransaction);
+        onSave(transaction.id || '', updatedTransaction);
     };
 
     return (
@@ -414,6 +416,7 @@ export default function UploadDialog({
     clientId,
     businessId,
     typeOfBusiness,
+    editDocument,
 }: Props) {
     const [isOpenDialog, setIsOpenDialog] = useState(isOpen || false);
     const [currentZoom, setCurrentZoom] = useState(1);
@@ -424,7 +427,9 @@ export default function UploadDialog({
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     // const [uploadedDocument, setUploadedDocument] = useState<any>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [tempTransactions, setTempTransactions] = useState<Transaction[]>([]);
+    const [tempTransactions, setTempTransactions] = useState<
+        DocumentTransaction[]
+    >([]);
     const [editingTransaction, setEditingTransaction] = useState<string | null>(
         null,
     );
@@ -433,6 +438,9 @@ export default function UploadDialog({
     const [validationResult, setValidationResult] =
         useState<FileValidationResult | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Handle edit mode - if editDocument is provided, we're in edit mode
+    const isEditMode = !!editDocument;
 
     const transactionCategories = useMemo(
         () =>
@@ -506,6 +514,26 @@ export default function UploadDialog({
     //         enabled: !!uploadedDocument?.id,
     //     });
 
+    // Get document transactions for edit mode
+    const { data: documentTransactions, refetch: refetchTransactions } =
+        useQuery({
+            queryKey: ['document-transactions', editDocument?.id],
+            queryFn: () =>
+                documentsService.getDocumentTransactions(editDocument!.id),
+            enabled: !!editDocument?.id && isEditMode,
+        });
+    console.log('documentTransactions', documentTransactions);
+    useEffect(() => {
+        if (
+            documentTransactions &&
+            documentTransactions?.length > 0 &&
+            isEditMode
+        ) {
+            setTempTransactions(documentTransactions);
+        }
+    }, [documentTransactions, isEditMode]);
+
+    console.log('documentTransactions', documentTransactions);
     // Bulk create transactions mutation
     const createBulkTransactionsMutation = useMutation({
         mutationFn: ({
@@ -570,19 +598,34 @@ export default function UploadDialog({
             documentUrl: string;
             transactions: any[];
             documentId: string;
-        }) =>
-            documentsService.uploadDocumentWithTransactions({
-                clientId,
-                businessId,
-                documentUrl,
-                transactions,
-                documentId,
-            }),
+        }) => {
+            debugger;
+            if (isEditMode) {
+                return documentsService.updateDocumentTransactions(
+                    documentId,
+                    transactions,
+                );
+            } else {
+                if (!uploadData?.id) {
+                    throw new Error('No document uploaded');
+                }
+                return documentsService.uploadDocumentWithTransactions({
+                    clientId: clientId!,
+                    businessId: businessId!,
+                    documentUrl: uploadData.s3Url,
+                    transactions: transactions,
+                    documentId: uploadData.id,
+                });
+            }
+        },
         onSuccess: () => {
             toast.success(
-                `${tempTransactions.length} transactions approved and saved to database`,
+                isEditMode
+                    ? 'Document transactions updated successfully'
+                    : `${tempTransactions.length} transactions approved and saved to database`,
             );
             setIsOpenDialog(false);
+            onClose?.();
             setTempTransactions([]);
             queryClient.invalidateQueries({
                 queryKey: ['client-documents', clientId],
@@ -681,7 +724,7 @@ export default function UploadDialog({
             return;
         }
 
-        if (!uploadData?.id) {
+        if (!uploadData?.id && !isEditMode) {
             toast.error('No document uploaded');
             return;
         }
@@ -689,6 +732,8 @@ export default function UploadDialog({
         try {
             // Convert temp transactions to regular transactions format
             const transactionsToSave = tempTransactions.map((temp) => ({
+                ...temp,
+                id: temp.id?.includes('temp') ? null : temp.id,
                 transactionDate: temp.transactionDate,
                 description: temp.description,
                 category: temp.category,
@@ -697,16 +742,16 @@ export default function UploadDialog({
                 isAIGenerated: temp.isAIGenerated || false,
                 aiConfidence: temp.aiConfidence || 0,
                 notes: temp.notes,
-                type: 'transaction', // Add type for the new API
+                type: temp.type,
             }));
 
             // Save to database using the new API endpoint
             uploadDocumentWithTransactionsMutation.mutate({
                 clientId: clientId!,
                 businessId: businessId!,
-                documentUrl: uploadData.s3Url,
+                documentUrl: uploadData?.s3Url || editDocument?.s3Url || '',
                 transactions: transactionsToSave,
-                documentId: uploadData.id,
+                documentId: editDocument?.id || uploadData?.id || '',
             });
 
             // Clear temp transactions
@@ -716,6 +761,7 @@ export default function UploadDialog({
     };
 
     const handleEditTransaction = (transactionId: string) => {
+        debugger;
         setEditingTransaction(transactionId);
     };
 
@@ -731,7 +777,7 @@ export default function UploadDialog({
             ),
         );
         setEditingTransaction(null);
-        toast.success('Transaction updated successfully');
+        // toast.success('Transaction updated successfully');
     };
 
     const handleDeleteTransaction = (transactionId: string) => {
@@ -747,7 +793,7 @@ export default function UploadDialog({
 
     const handleAddTransaction = async (transaction: any) => {
         // Add to local temp transactions
-        const newTempTransaction: Transaction = {
+        const newTempTransaction: DocumentTransaction = {
             id: `temp-${Date.now()}-${Math.random()}`,
             transactionDate: transaction.transactionDate,
             description: transaction.description,
@@ -758,9 +804,10 @@ export default function UploadDialog({
             currency: transaction.currency || 'GBP',
             notes: transaction.notes,
             type: transaction.type,
+            clientId: clientId!,
         };
 
-        setTempTransactions((prev) => [...prev, newTempTransaction]);
+        setTempTransactions((prev) => [newTempTransaction, ...prev]);
         // toast.success('Transaction added to temporary storage');
         setShowAddForm(false);
     };
@@ -798,227 +845,6 @@ export default function UploadDialog({
                 </Badge>
             );
         }
-
-        const categoryMap: Record<string, { className: string }> = {
-            // Self-Employment Income Categories
-            turnover: { className: 'bg-purple-100 text-purple-800' },
-            otherIncome: { className: 'bg-purple-100 text-purple-800' },
-            taxTakenOffTradingIncome: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-
-            // Self-Employment Expense Categories
-            costOfGoods: { className: 'bg-red-100 text-red-800' },
-            paymentsToSubcontractors: { className: 'bg-red-100 text-red-800' },
-            wagesAndStaffCosts: { className: 'bg-red-100 text-red-800' },
-            carVanTravelExpenses: { className: 'bg-red-100 text-red-800' },
-            premisesRunningCosts: { className: 'bg-red-100 text-red-800' },
-            maintenanceCosts: { className: 'bg-red-100 text-red-800' },
-            adminCosts: { className: 'bg-red-100 text-red-800' },
-            businessEntertainmentCosts: {
-                className: 'bg-red-100 text-red-800',
-            },
-            advertisingCosts: { className: 'bg-red-100 text-red-800' },
-            interestOnBankOtherLoans: { className: 'bg-red-100 text-red-800' },
-            financeCharges: { className: 'bg-red-100 text-red-800' },
-            irrecoverableDebts: { className: 'bg-red-100 text-red-800' },
-            professionalFees: { className: 'bg-red-100 text-red-800' },
-            depreciation: { className: 'bg-red-100 text-red-800' },
-            otherExpenses: { className: 'bg-red-100 text-red-800' },
-
-            // Self-Employment Disallowable Expense Categories
-            costOfGoodsDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            paymentsToSubcontractorsDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            wagesAndStaffCostsDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            carVanTravelExpensesDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            premisesRunningCostsDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            maintenanceCostsDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            adminCostsDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            businessEntertainmentCostsDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            advertisingCostsDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            interestOnBankOtherLoansDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            financeChargesDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            irrecoverableDebtsDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            professionalFeesDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            depreciationDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-            otherExpensesDisallowable: {
-                className: 'bg-orange-100 text-orange-800',
-            },
-
-            // UK FHL Income Categories
-            period_amount: { className: 'bg-purple-100 text-purple-800' },
-            tax_deducted: { className: 'bg-purple-100 text-purple-800' },
-            rent_a_room_rents_received: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-
-            // UK FHL Expense Categories
-            premises_running_costs: { className: 'bg-red-100 text-red-800' },
-            repairs_and_maintenance: { className: 'bg-red-100 text-red-800' },
-            financial_costs: { className: 'bg-red-100 text-red-800' },
-            professional_fees: { className: 'bg-red-100 text-red-800' },
-            cost_of_services: { className: 'bg-red-100 text-red-800' },
-            other: { className: 'bg-red-100 text-red-800' },
-            travel_costs: { className: 'bg-red-100 text-red-800' },
-            rent_a_room_amount_claimed: {
-                className: 'bg-red-100 text-red-800',
-            },
-
-            // UK Non-FHL Income Categories
-            premiums_of_lease_grant: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-            reverse_premiums: { className: 'bg-purple-100 text-purple-800' },
-            non_fhl_period_amount: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-            non_fhl_tax_deducted: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-            other_income: { className: 'bg-purple-100 text-purple-800' },
-            non_fhl_rent_a_room_rents_received: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-
-            // UK Non-FHL Expense Categories
-            non_fhl_premises_running_costs: {
-                className: 'bg-red-100 text-red-800',
-            },
-            non_fhl_repairs_and_maintenance: {
-                className: 'bg-red-100 text-red-800',
-            },
-            non_fhl_financial_costs: { className: 'bg-red-100 text-red-800' },
-            non_fhl_professional_fees: { className: 'bg-red-100 text-red-800' },
-            non_fhl_cost_of_services: { className: 'bg-red-100 text-red-800' },
-            non_fhl_other: { className: 'bg-red-100 text-red-800' },
-            residential_financial_cost: {
-                className: 'bg-red-100 text-red-800',
-            },
-            non_fhl_travel_costs: { className: 'bg-red-100 text-red-800' },
-            residential_financial_costs_carried_forward: {
-                className: 'bg-red-100 text-red-800',
-            },
-            non_fhl_rent_a_room_amount_claimed: {
-                className: 'bg-red-100 text-red-800',
-            },
-
-            // Foreign FHL Income Categories
-            foreign_fhl_rent_amount: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-
-            // Foreign FHL Expense Categories
-            foreign_fhl_premises_running_costs: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_fhl_repairs_and_maintenance: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_fhl_financial_costs: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_fhl_professional_fees: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_fhl_cost_of_services: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_fhl_travel_costs: { className: 'bg-red-100 text-red-800' },
-            foreign_fhl_other: { className: 'bg-red-100 text-red-800' },
-
-            // Foreign Non-FHL Income Categories
-            foreign_non_fhl_rent_amount: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-            foreign_tax_credit_relief: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-            foreign_premiums_of_lease_grant: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-            foreign_other_property_income: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-            foreign_tax_paid_or_deducted: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-            foreign_special_withholding_tax_or_uk_tax_paid: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-
-            // Foreign Non-FHL Expense Categories
-            foreign_non_fhl_premises_running_costs: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_non_fhl_repairs_and_maintenance: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_non_fhl_financial_costs: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_non_fhl_professional_fees: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_non_fhl_cost_of_services: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_non_fhl_travel_costs: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_residential_financial_cost: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_brought_forward_residential_financial_cost: {
-                className: 'bg-red-100 text-red-800',
-            },
-            foreign_non_fhl_other: { className: 'bg-red-100 text-red-800' },
-
-            // Legacy categories (for backward compatibility)
-            SALES_INCOME: { className: 'bg-purple-100 text-purple-800' },
-            CONSULTING_INCOME_LEGACY: {
-                className: 'bg-purple-100 text-purple-800',
-            },
-            PROPERTY_INCOME: { className: 'bg-purple-100 text-purple-800' },
-            INTEREST_INCOME: { className: 'bg-purple-100 text-purple-800' },
-            OTHER_INCOME: { className: 'bg-purple-100 text-purple-800' },
-            SOFTWARE_SUBSCRIPTIONS: { className: 'bg-red-100 text-red-800' },
-            TRAVEL_TRANSPORT: { className: 'bg-red-100 text-red-800' },
-            MARKETING_ADVERTISING: { className: 'bg-red-100 text-red-800' },
-            MAINTENANCE_REPAIRS: { className: 'bg-red-100 text-red-800' },
-            TRAINING_DEVELOPMENT: { className: 'bg-red-100 text-red-800' },
-            RENT: { className: 'bg-red-100 text-red-800' },
-            SALARIES_WAGES: { className: 'bg-red-100 text-red-800' },
-            PENSION_CONTRIBUTIONS: { className: 'bg-red-100 text-red-800' },
-            NATIONAL_INSURANCE: { className: 'bg-red-100 text-red-800' },
-        };
 
         const config = categoryMap[categoryCode] || {
             className: 'bg-gray-100 text-gray-800',
@@ -1161,7 +987,13 @@ export default function UploadDialog({
     // }, [documentTransactions, tempTransactions]);
 
     return (
-        <Dialog open={isOpenDialog} onOpenChange={setIsOpenDialog}>
+        <Dialog
+            open={isOpenDialog}
+            onOpenChange={(open) => {
+                setIsOpenDialog(open);
+                onClose?.();
+            }}
+        >
             <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent className="max-w-7xl md:max-w-[1400px] max-h-[90vh] overflow-hidden p-0 space-y-0 gap-0">
                 <DialogHeader className="px-6 py-4 border-b border-gray-200">
@@ -1169,15 +1001,21 @@ export default function UploadDialog({
                         <div className="flex items-center">
                             <FileText className="w-5 h-5 text-blue-600 mr-2.5" />
                             <DialogTitle className="text-xl font-semibold text-gray-900">
-                                Extracted Transactions
+                                {editDocument
+                                    ? 'Edit Document'
+                                    : 'Extracted Transactions'}
                             </DialogTitle>
                         </div>
                         <div className="flex items-center">
                             <span className="text-sm text-gray-600 mr-5">
                                 <span className="font-medium text-gray-900">
-                                    {uploadedFile
-                                        ? uploadedFile.name
-                                        : documentName}
+                                    {editDocument
+                                        ? editDocument.originalFileName ||
+                                          editDocument.fileName ||
+                                          'Document'
+                                        : uploadedFile
+                                          ? uploadedFile.name
+                                          : documentName}
                                 </span>
                             </span>
                         </div>
@@ -1213,7 +1051,7 @@ export default function UploadDialog({
                         </div>
 
                         <div className="flex-1 bg-gray-100 flex items-center justify-center overflow-auto relative">
-                            {!uploadedFile ? (
+                            {!uploadedFile && !isEditMode ? (
                                 <div
                                     className={`w-[90%] h-[95%] border-2 border-dashed rounded-lg flex flex-col items-center justify-center transition-colors ${
                                         isDragOver
@@ -1301,29 +1139,87 @@ export default function UploadDialog({
                                     }}
                                 >
                                     <div className="flex flex-col items-center justify-center absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center text-gray-400 w-full">
-                                        {getDocumentIcon()}
-                                        <div className="text-sm mt-4">
-                                            {uploadedFile.name} Preview
-                                        </div>
-                                        <div className="text-xs text-gray-400 mt-2">
-                                            File size:{' '}
-                                            {uploadService.formatFileSize(
-                                                uploadedFile.size,
-                                            )}
-                                        </div>
-                                        {isUploading && (
-                                            <div className="w-full max-w-xs mt-4">
-                                                <Progress
-                                                    value={uploadProgress}
-                                                    className="w-full"
-                                                />
-                                            </div>
-                                        )}
-                                        {uploadStatus === 'processing' && (
-                                            <div className="mt-4 flex items-center text-purple-600">
-                                                <Bot className="w-4 h-4 animate-pulse mr-2" />
-                                                Processing with AI...
-                                            </div>
+                                        {isEditMode ? (
+                                            <>
+                                                {getDocumentIcon()}
+                                                <div className="text-sm mt-4">
+                                                    {editDocument.originalFileName ||
+                                                        editDocument.fileName ||
+                                                        'Document'}{' '}
+                                                    Preview
+                                                </div>
+                                                <div className="text-xs text-gray-400 mt-2">
+                                                    File size:{' '}
+                                                    {editDocument.fileSize
+                                                        ? uploadService.formatFileSize(
+                                                              editDocument.fileSize,
+                                                          )
+                                                        : 'Unknown'}
+                                                </div>
+                                                <div className="text-xs text-gray-400 mt-1">
+                                                    Uploaded:{' '}
+                                                    {editDocument.uploadedAt
+                                                        ? new Date(
+                                                              editDocument.uploadedAt,
+                                                          ).toLocaleDateString()
+                                                        : 'Unknown'}
+                                                </div>
+                                                {editDocument.documentType &&
+                                                    editDocument.documentType
+                                                        .length > 0 && (
+                                                        <div className="flex flex-wrap gap-1 mt-2 justify-center">
+                                                            {editDocument.documentType.map(
+                                                                (
+                                                                    type: string,
+                                                                    index: number,
+                                                                ) => (
+                                                                    <span
+                                                                        key={
+                                                                            index
+                                                                        }
+                                                                        className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full"
+                                                                    >
+                                                                        {type}
+                                                                    </span>
+                                                                ),
+                                                            )}
+                                                        </div>
+                                                    )}
+                                            </>
+                                        ) : (
+                                            <>
+                                                {getDocumentIcon()}
+                                                <div className="text-sm mt-4">
+                                                    {uploadedFile?.name ||
+                                                        'Document'}{' '}
+                                                    Preview
+                                                </div>
+                                                <div className="text-xs text-gray-400 mt-2">
+                                                    File size:{' '}
+                                                    {uploadedFile
+                                                        ? uploadService.formatFileSize(
+                                                              uploadedFile.size,
+                                                          )
+                                                        : 'Unknown'}
+                                                </div>
+                                                {isUploading && (
+                                                    <div className="w-full max-w-xs mt-4">
+                                                        <Progress
+                                                            value={
+                                                                uploadProgress
+                                                            }
+                                                            className="w-full"
+                                                        />
+                                                    </div>
+                                                )}
+                                                {uploadStatus ===
+                                                    'processing' && (
+                                                    <div className="mt-4 flex items-center text-purple-600">
+                                                        <Bot className="w-4 h-4 animate-pulse mr-2" />
+                                                        Processing with AI...
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -1362,7 +1258,9 @@ export default function UploadDialog({
                         <div className="px-4 py-4 border-b border-gray-200 flex justify-between items-center h-16">
                             <div className="text-sm font-medium text-gray-900">
                                 <span className="text-blue-600 font-semibold">
-                                    {transactions.length}
+                                    {isEditMode
+                                        ? documentTransactions?.length || 0
+                                        : transactions.length}
                                 </span>{' '}
                                 Transactions Extracted
                                 {tempTransactions.length > 0 && (
@@ -1409,9 +1307,11 @@ export default function UploadDialog({
                                     ) : (
                                         <Check className="w-3 h-3 mr-1" />
                                     )}
-                                    Approve All ({tempTransactions.length})
+                                    {isEditMode
+                                        ? 'Save Changes'
+                                        : `Approve All (${tempTransactions.length})`}
                                 </Button>
-                                {tempTransactions.length > 0 && (
+                                {!isEditMode && tempTransactions.length > 0 && (
                                     <Button
                                         size="sm"
                                         variant="outline"
@@ -1470,8 +1370,6 @@ export default function UploadDialog({
                                             documentId={uploadData?.id}
                                         />
                                     )}
-
-                                    {/* Transaction Rows */}
                                     {tempTransactions.map((transaction) => (
                                         <React.Fragment key={transaction.id}>
                                             {editingTransaction ===
@@ -1532,7 +1430,8 @@ export default function UploadDialog({
                                                                 className="w-8 h-8 p-0"
                                                                 onClick={() =>
                                                                     handleEditTransaction(
-                                                                        transaction.id,
+                                                                        transaction.id ??
+                                                                            '',
                                                                     )
                                                                 }
                                                             >
@@ -1544,7 +1443,8 @@ export default function UploadDialog({
                                                                 className="w-8 h-8 p-0"
                                                                 onClick={() =>
                                                                     handleDeleteTransaction(
-                                                                        transaction.id,
+                                                                        transaction.id ||
+                                                                            '',
                                                                     )
                                                                 }
                                                             >
@@ -1565,3 +1465,224 @@ export default function UploadDialog({
         </Dialog>
     );
 }
+
+const categoryMap: Record<string, { className: string }> = {
+    // Self-Employment Income Categories
+    turnover: { className: 'bg-purple-100 text-purple-800' },
+    otherIncome: { className: 'bg-purple-100 text-purple-800' },
+    taxTakenOffTradingIncome: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+
+    // Self-Employment Expense Categories
+    costOfGoods: { className: 'bg-red-100 text-red-800' },
+    paymentsToSubcontractors: { className: 'bg-red-100 text-red-800' },
+    wagesAndStaffCosts: { className: 'bg-red-100 text-red-800' },
+    carVanTravelExpenses: { className: 'bg-red-100 text-red-800' },
+    premisesRunningCosts: { className: 'bg-red-100 text-red-800' },
+    maintenanceCosts: { className: 'bg-red-100 text-red-800' },
+    adminCosts: { className: 'bg-red-100 text-red-800' },
+    businessEntertainmentCosts: {
+        className: 'bg-red-100 text-red-800',
+    },
+    advertisingCosts: { className: 'bg-red-100 text-red-800' },
+    interestOnBankOtherLoans: { className: 'bg-red-100 text-red-800' },
+    financeCharges: { className: 'bg-red-100 text-red-800' },
+    irrecoverableDebts: { className: 'bg-red-100 text-red-800' },
+    professionalFees: { className: 'bg-red-100 text-red-800' },
+    depreciation: { className: 'bg-red-100 text-red-800' },
+    otherExpenses: { className: 'bg-red-100 text-red-800' },
+
+    // Self-Employment Disallowable Expense Categories
+    costOfGoodsDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    paymentsToSubcontractorsDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    wagesAndStaffCostsDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    carVanTravelExpensesDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    premisesRunningCostsDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    maintenanceCostsDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    adminCostsDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    businessEntertainmentCostsDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    advertisingCostsDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    interestOnBankOtherLoansDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    financeChargesDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    irrecoverableDebtsDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    professionalFeesDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    depreciationDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+    otherExpensesDisallowable: {
+        className: 'bg-orange-100 text-orange-800',
+    },
+
+    // UK FHL Income Categories
+    period_amount: { className: 'bg-purple-100 text-purple-800' },
+    tax_deducted: { className: 'bg-purple-100 text-purple-800' },
+    rent_a_room_rents_received: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+
+    // UK FHL Expense Categories
+    premises_running_costs: { className: 'bg-red-100 text-red-800' },
+    repairs_and_maintenance: { className: 'bg-red-100 text-red-800' },
+    financial_costs: { className: 'bg-red-100 text-red-800' },
+    professional_fees: { className: 'bg-red-100 text-red-800' },
+    cost_of_services: { className: 'bg-red-100 text-red-800' },
+    other: { className: 'bg-red-100 text-red-800' },
+    travel_costs: { className: 'bg-red-100 text-red-800' },
+    rent_a_room_amount_claimed: {
+        className: 'bg-red-100 text-red-800',
+    },
+
+    // UK Non-FHL Income Categories
+    premiums_of_lease_grant: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+    reverse_premiums: { className: 'bg-purple-100 text-purple-800' },
+    non_fhl_period_amount: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+    non_fhl_tax_deducted: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+    other_income: { className: 'bg-purple-100 text-purple-800' },
+    non_fhl_rent_a_room_rents_received: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+
+    // UK Non-FHL Expense Categories
+    non_fhl_premises_running_costs: {
+        className: 'bg-red-100 text-red-800',
+    },
+    non_fhl_repairs_and_maintenance: {
+        className: 'bg-red-100 text-red-800',
+    },
+    non_fhl_financial_costs: { className: 'bg-red-100 text-red-800' },
+    non_fhl_professional_fees: { className: 'bg-red-100 text-red-800' },
+    non_fhl_cost_of_services: { className: 'bg-red-100 text-red-800' },
+    non_fhl_other: { className: 'bg-red-100 text-red-800' },
+    residential_financial_cost: {
+        className: 'bg-red-100 text-red-800',
+    },
+    non_fhl_travel_costs: { className: 'bg-red-100 text-red-800' },
+    residential_financial_costs_carried_forward: {
+        className: 'bg-red-100 text-red-800',
+    },
+    non_fhl_rent_a_room_amount_claimed: {
+        className: 'bg-red-100 text-red-800',
+    },
+
+    // Foreign FHL Income Categories
+    foreign_fhl_rent_amount: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+
+    // Foreign FHL Expense Categories
+    foreign_fhl_premises_running_costs: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_fhl_repairs_and_maintenance: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_fhl_financial_costs: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_fhl_professional_fees: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_fhl_cost_of_services: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_fhl_travel_costs: { className: 'bg-red-100 text-red-800' },
+    foreign_fhl_other: { className: 'bg-red-100 text-red-800' },
+
+    // Foreign Non-FHL Income Categories
+    foreign_non_fhl_rent_amount: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+    foreign_tax_credit_relief: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+    foreign_premiums_of_lease_grant: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+    foreign_other_property_income: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+    foreign_tax_paid_or_deducted: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+    foreign_special_withholding_tax_or_uk_tax_paid: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+
+    // Foreign Non-FHL Expense Categories
+    foreign_non_fhl_premises_running_costs: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_non_fhl_repairs_and_maintenance: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_non_fhl_financial_costs: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_non_fhl_professional_fees: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_non_fhl_cost_of_services: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_non_fhl_travel_costs: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_residential_financial_cost: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_brought_forward_residential_financial_cost: {
+        className: 'bg-red-100 text-red-800',
+    },
+    foreign_non_fhl_other: { className: 'bg-red-100 text-red-800' },
+
+    // Legacy categories (for backward compatibility)
+    SALES_INCOME: { className: 'bg-purple-100 text-purple-800' },
+    CONSULTING_INCOME_LEGACY: {
+        className: 'bg-purple-100 text-purple-800',
+    },
+    PROPERTY_INCOME: { className: 'bg-purple-100 text-purple-800' },
+    INTEREST_INCOME: { className: 'bg-purple-100 text-purple-800' },
+    OTHER_INCOME: { className: 'bg-purple-100 text-purple-800' },
+    SOFTWARE_SUBSCRIPTIONS: { className: 'bg-red-100 text-red-800' },
+    TRAVEL_TRANSPORT: { className: 'bg-red-100 text-red-800' },
+    MARKETING_ADVERTISING: { className: 'bg-red-100 text-red-800' },
+    MAINTENANCE_REPAIRS: { className: 'bg-red-100 text-red-800' },
+    TRAINING_DEVELOPMENT: { className: 'bg-red-100 text-red-800' },
+    RENT: { className: 'bg-red-100 text-red-800' },
+    SALARIES_WAGES: { className: 'bg-red-100 text-red-800' },
+    PENSION_CONTRIBUTIONS: { className: 'bg-red-100 text-red-800' },
+    NATIONAL_INSURANCE: { className: 'bg-red-100 text-red-800' },
+};

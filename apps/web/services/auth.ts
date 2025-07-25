@@ -131,7 +131,6 @@ export const authService = {
                     }),
                 },
             );
-
             const data = await response.json();
             if (!response.ok) {
                 throw new Error('Failed to refresh token');
@@ -139,9 +138,9 @@ export const authService = {
 
             return {
                 ...token,
-                accessToken: data.access_token,
-                refreshToken: data.refresh_token || token.refreshToken, // Use new refresh token if provided
-                expiresAt: Date.now() + (data.expires_in || 3600) * 1000,
+                accessToken: data.data.access_token,
+                refreshToken: data.data.refresh_token || token.refreshToken, // Use new refresh token if provided
+                expiresAt: Date.now() + (data.data.expires_in || 3600) * 1000,
             };
         } catch (error) {
             console.error('Error refreshing access token', error);

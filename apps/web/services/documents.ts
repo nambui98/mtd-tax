@@ -28,9 +28,9 @@ export interface Document {
 }
 
 export interface DocumentTransaction {
-    id: string;
-    documentId: string;
-    userId: string;
+    id?: string;
+    documentId?: string;
+    userId?: string;
     clientId: string;
     businessId?: string;
     transactionDate: string;
@@ -39,16 +39,17 @@ export interface DocumentTransaction {
     amount: number;
     currency: string;
     status: string;
-    isAIGenerated: boolean;
-    aiConfidence: number;
+    isAIGenerated?: boolean;
+    aiConfidence?: number;
     hmrcTransactionId?: string;
     hmrcCategory?: string;
     hmrcBusinessId?: string;
     hmrcClientId?: string;
     notes?: string;
     metadata?: any;
-    createdAt: string;
-    updatedAt: string;
+    createdAt?: string;
+    updatedAt?: string;
+    type?: string;
 }
 
 export interface DocumentFolder {
@@ -399,6 +400,29 @@ export const documentsService = {
         return response.data.data;
     },
 
+    updateDocumentTransactions: async (
+        documentId: string,
+        transactions: Array<{
+            id?: string;
+            transactionDate?: string;
+            description?: string;
+            category?: string;
+            amount?: number;
+            currency?: string;
+            status?: string;
+            notes?: string;
+            type?: string;
+        }>,
+    ): Promise<DocumentTransaction[]> => {
+        const response = await api.put(
+            `/documents/${documentId}/transactions`,
+            {
+                transactions,
+            },
+        );
+        return response.data.data;
+    },
+
     uploadDocumentWithTransactions: async ({
         clientId,
         businessId,
@@ -428,6 +452,29 @@ export const documentsService = {
                 documentUrl,
                 clientId,
                 businessId,
+                transactions,
+            },
+        );
+        return response.data.data;
+    },
+
+    // Update transactions for a document
+    updateTransactions: async (
+        documentId: string,
+        transactions: Array<{
+            id: string;
+            transactionDate?: string;
+            description?: string;
+            category?: string;
+            amount?: number;
+            currency?: string;
+            status?: string;
+            notes?: string;
+        }>,
+    ): Promise<DocumentTransaction[]> => {
+        const response = await api.put(
+            `/documents/${documentId}/transactions`,
+            {
                 transactions,
             },
         );

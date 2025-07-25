@@ -55,8 +55,8 @@ export default function ClientDocuments({
 }: Props) {
     const [isLoadingDocuments] = useState(false);
     const [showPreviewModal, setShowPreviewModal] = useState(false);
-    const [showEditModal, setShowEditModal] = useState(false);
-    const [selectedDocument, setSelectedDocument] = useState<any>(null);
+    const [showUploadDialog, setShowUploadDialog] = useState(false);
+    const [documentToEdit, setDocumentToEdit] = useState<any>(null);
     const [showAddTransactionModal, setShowAddTransactionModal] =
         useState(false);
     const [currentZoom, setCurrentZoom] = useState(1);
@@ -127,8 +127,8 @@ export default function ClientDocuments({
     };
 
     const handleEditDocument = (doc: any) => {
-        setSelectedDocument(doc);
-        setShowEditModal(true);
+        setDocumentToEdit(doc);
+        setShowUploadDialog(true);
     };
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -527,11 +527,12 @@ export default function ClientDocuments({
                                                                     ? doc.documentType?.flatMap(
                                                                           (
                                                                               type: string,
+                                                                              index: number,
                                                                           ) =>
                                                                               type ? (
                                                                                   <span
                                                                                       key={
-                                                                                          type
+                                                                                          index
                                                                                       }
                                                                                       className={`px-2 py-1 text-xs rounded-full ${getTagColor(type)}`}
                                                                                   >
@@ -681,331 +682,24 @@ export default function ClientDocuments({
             </div>
 
             {/* Preview Modal */}
-            {showPreviewModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg w-11/12 max-w-6xl max-h-[90vh] overflow-hidden">
-                        <div className="flex justify-between items-center p-6 border-b border-gray-200">
-                            <h3 className="text-xl font-semibold text-gray-900 flex items-center">
-                                <File className="w-6 h-6 mr-2" />
-                                Extracted Transactions
-                            </h3>
-                            <div className="flex items-center">
-                                <div className="mr-5 text-sm text-gray-600">
-                                    <span className="font-medium text-gray-900">
-                                        Document Preview
-                                    </span>
-                                </div>
-                                <button
-                                    onClick={() => setShowPreviewModal(false)}
-                                    className="text-gray-400 hover:text-gray-600"
-                                >
-                                    <X className="w-6 h-6" />
-                                </button>
-                            </div>
-                        </div>
 
-                        <div className="flex h-[600px]">
-                            {/* Document Preview Panel */}
-                            <div className="w-2/5 border-r border-gray-200 flex flex-col">
-                                <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-                                    <div className="text-sm font-medium text-gray-900">
-                                        Document Preview
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button className="p-2 text-gray-600 hover:text-gray-800">
-                                            <Minus className="w-4 h-4" />
-                                        </button>
-                                        <button className="p-2 text-gray-600 hover:text-gray-800">
-                                            <ZoomIn className="w-4 h-4" />
-                                        </button>
-                                        <button className="p-2 text-gray-600 hover:text-gray-800">
-                                            <Expand className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="flex-1 bg-gray-100 flex items-center justify-center">
-                                    <div className="bg-white w-4/5 h-4/5 shadow-sm relative">
-                                        <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-                                            <div className="text-center">
-                                                <File className="w-16 h-16 mb-4 mx-auto" />
-                                                <div className="text-sm">
-                                                    Document Preview
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="p-3 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
-                                    <div className="text-xs text-gray-600">
-                                        Page 1 of 2
-                                    </div>
-                                    <div className="flex gap-4">
-                                        <button className="text-sm text-gray-600 hover:text-gray-800 flex items-center">
-                                            <ChevronLeft className="w-4 h-4 mr-1" />
-                                            Previous
-                                        </button>
-                                        <button className="text-sm text-blue-600 hover:text-blue-700 flex items-center">
-                                            Next
-                                            <ChevronRight className="w-4 h-4 ml-1" />
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Transactions Panel */}
-                            <div className="w-3/5">
-                                <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-                                    <div className="text-sm font-medium text-gray-900">
-                                        <span className="text-blue-600 font-semibold">
-                                            0
-                                        </span>{' '}
-                                        Transactions Extracted
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                                setShowAddTransactionForm(
-                                                    !showAddTransactionForm,
-                                                )
-                                            }
-                                        >
-                                            <Plus className="w-4 h-4 mr-1" />
-                                            Add Transaction
-                                        </Button>
-                                        <Button variant="outline" size="sm">
-                                            <FileDown className="w-4 h-4 mr-1" />
-                                            Export
-                                        </Button>
-                                        <Button size="sm">
-                                            <Check className="w-4 h-4 mr-1" />
-                                            Approve All
-                                        </Button>
-                                    </div>
-                                </div>
-
-                                <div className="h-[552px] overflow-y-auto">
-                                    <div className="flex items-center justify-center h-full text-gray-500">
-                                        <div className="text-center">
-                                            <FileText className="w-12 h-12 mx-auto mb-4" />
-                                            <p>No transactions available</p>
-                                            <p className="text-sm">
-                                                Upload a document to extract
-                                                transactions
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Edit Document Modal */}
-            {showEditModal && selectedDocument && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg w-11/12 max-w-2xl max-h-[90vh] overflow-hidden">
-                        <div className="flex justify-between items-center p-6 border-b border-gray-200">
-                            <h3 className="text-xl font-semibold text-gray-900 flex items-center">
-                                <Edit className="w-6 h-6 mr-2" />
-                                Edit Document
-                            </h3>
-                            <button
-                                onClick={() => {
-                                    setShowEditModal(false);
-                                    setSelectedDocument(null);
-                                }}
-                                className="text-gray-400 hover:text-gray-600"
-                            >
-                                <X className="w-6 h-6" />
-                            </button>
-                        </div>
-
-                        <div className="p-6">
-                            <div className="space-y-6">
-                                {/* Document Preview */}
-                                <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-                                    <div className="w-12 h-12 bg-gray-100 rounded-md flex items-center justify-center">
-                                        {getDocumentIcon(
-                                            getDocumentFileType(
-                                                selectedDocument,
-                                            ),
-                                        )}
-                                    </div>
-                                    <div className="flex-1">
-                                        <div className="font-medium text-gray-900">
-                                            {getDocumentDisplayName(
-                                                selectedDocument,
-                                            )}
-                                        </div>
-                                        <div className="text-sm text-gray-600">
-                                            {formatFileSize(
-                                                selectedDocument.fileSize,
-                                            )}{' '}
-                                            •{' '}
-                                            {formatDate(
-                                                selectedDocument.uploadedAt,
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Edit Form */}
-                                <div className="space-y-4">
-                                    {/* File Name */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            File Name
-                                        </label>
-                                        <input
-                                            type="text"
-                                            defaultValue={getDocumentDisplayName(
-                                                selectedDocument,
-                                            )}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            placeholder="Enter file name"
-                                        />
-                                    </div>
-
-                                    {/* Document Type */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Document Type
-                                        </label>
-                                        <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                            <option value="invoice">
-                                                Invoice
-                                            </option>
-                                            <option value="receipt">
-                                                Receipt
-                                            </option>
-                                            <option value="bank-statement">
-                                                Bank Statement
-                                            </option>
-                                            <option value="tax-document">
-                                                Tax Document
-                                            </option>
-                                            <option value="expense">
-                                                Expense
-                                            </option>
-                                            <option value="income">
-                                                Income
-                                            </option>
-                                        </select>
-                                    </div>
-
-                                    {/* Business Assignment */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Business Assignment
-                                        </label>
-                                        <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                            <option value="">
-                                                All Businesses
-                                            </option>
-                                            <option value="consulting">
-                                                Consulting (Self-Employed)
-                                            </option>
-                                            <option value="property">
-                                                Property Rental
-                                            </option>
-                                            <option value="foreign">
-                                                Foreign Income
-                                            </option>
-                                        </select>
-                                    </div>
-
-                                    {/* Status */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Status
-                                        </label>
-                                        <select className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                            <option value="pending">
-                                                Pending
-                                            </option>
-                                            <option value="processed">
-                                                Processed
-                                            </option>
-                                            <option value="approved">
-                                                Approved
-                                            </option>
-                                            <option value="error">Error</option>
-                                            <option value="rejected">
-                                                Rejected
-                                            </option>
-                                        </select>
-                                    </div>
-
-                                    {/* Tags */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Tags
-                                        </label>
-                                        <div className="flex flex-wrap gap-2 p-3 border border-gray-300 rounded-md min-h-[40px]">
-                                            {selectedDocument.documentType?.map(
-                                                (type: string) => (
-                                                    <span
-                                                        key={type}
-                                                        className={`px-2 py-1 text-xs rounded-full ${getTagColor(type)} flex items-center`}
-                                                    >
-                                                        {type}
-                                                        <button className="ml-1 text-gray-500 hover:text-gray-700">
-                                                            <X className="w-3 h-3" />
-                                                        </button>
-                                                    </span>
-                                                ),
-                                            )}
-                                            <button className="text-blue-600 text-sm hover:text-blue-700">
-                                                + Add Tag
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Notes */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Notes
-                                        </label>
-                                        <textarea
-                                            rows={3}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            placeholder="Add notes about this document..."
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Modal Actions */}
-                        <div className="flex justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    setShowEditModal(false);
-                                    setSelectedDocument(null);
-                                }}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                onClick={() => {
-                                    // Handle save logic here
-                                    toast.success(
-                                        'Document updated successfully',
-                                    );
-                                    setShowEditModal(false);
-                                    setSelectedDocument(null);
-                                    refetchDocuments();
-                                }}
-                            >
-                                Save Changes
-                            </Button>
-                        </div>
-                    </div>
-                </div>
+            {/* UploadDialog for Editing Documents */}
+            {showUploadDialog && documentToEdit && (
+                <UploadDialog
+                    isOpen={showUploadDialog}
+                    onClose={() => {
+                        setShowUploadDialog(false);
+                        setDocumentToEdit(null);
+                    }}
+                    documentName={getDocumentDisplayName(documentToEdit)}
+                    documentType={getDocumentFileType(documentToEdit)}
+                    clientId={clientId}
+                    businessId={businessId}
+                    typeOfBusiness={typeOfBusiness}
+                    editDocument={documentToEdit}
+                >
+                    <div style={{ display: 'none' }} />
+                </UploadDialog>
             )}
         </div>
     );

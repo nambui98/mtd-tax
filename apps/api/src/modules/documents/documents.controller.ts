@@ -516,4 +516,32 @@ export class DocumentsController {
             body.transactions,
         );
     }
+
+    @Put(':id/transactions')
+    @ApiOperation({ summary: 'Update transactions for a document' })
+    @ApiParam({ name: 'id', description: 'Document ID' })
+    async updateDocumentTransactions(
+        @Request() req: { user: { userId: string } },
+        @Param('id') id: string,
+        @Body()
+        body: {
+            transactions: Array<{
+                id?: string;
+                transactionDate?: string;
+                description?: string;
+                category?: string;
+                amount?: number;
+                currency?: string;
+                status?: string;
+                notes?: string;
+                type?: string;
+            }>;
+        },
+    ) {
+        return this.documentsService.updateDocumentTransactions(
+            id,
+            body.transactions,
+            req.user.userId,
+        );
+    }
 }

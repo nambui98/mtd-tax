@@ -71,41 +71,42 @@ api.interceptors.response.use(
                     session = await getServerSession(authOptions);
                 }
 
-                if (session?.refreshToken) {
-                    // Try to refresh the token
-                    const response = await fetch(
-                        `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/refresh-tokens`,
-                        {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                refreshToken: session.refreshToken,
-                            }),
-                        },
-                    );
+                // if (session?.refreshToken) {
+                //     // Try to refresh the token
+                //     const response = await fetch(
+                //         `${Env.NEXT_PUBLIC_BACKEND_API_URL}/auth/refresh-tokens`,
+                //         {
+                //             method: 'POST',
+                //             headers: { 'Content-Type': 'application/json' },
+                //             body: JSON.stringify({
+                //                 refreshToken: session.refreshToken,
+                //             }),
+                //         },
+                //     );
+                //     debugger;
 
-                    if (response.ok) {
-                        const data = await response.json();
+                //     if (response.ok) {
+                //         const data = await response.json();
 
-                        // Update the session with new tokens
-                        if (typeof window !== 'undefined') {
-                            // For client-side, we need to update the session
-                            // This is a simplified approach - in a real app you might want to use a more robust solution
-                            localStorage.setItem(
-                                'accessToken',
-                                data.access_token,
-                            );
-                            localStorage.setItem(
-                                'refreshToken',
-                                data.refresh_token,
-                            );
-                        }
+                //         // Update the session with new tokens
+                //         if (typeof window !== 'undefined') {
+                //             // For client-side, we need to update the session
+                //             // This is a simplified approach - in a real app you might want to use a more robust solution
+                //             localStorage.setItem(
+                //                 'accessToken',
+                //                 data.access_token,
+                //             );
+                //             localStorage.setItem(
+                //                 'refreshToken',
+                //                 data.refresh_token,
+                //             );
+                //         }
 
-                        // Retry the original request with new token
-                        originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
-                        return api(originalRequest);
-                    }
-                }
+                //         // Retry the original request with new token
+                //         originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+                //         return api(originalRequest);
+                //     }
+                // }
             } catch (refreshError) {
                 console.error('Token refresh failed:', refreshError);
                 // Redirect to login page or handle refresh failure
