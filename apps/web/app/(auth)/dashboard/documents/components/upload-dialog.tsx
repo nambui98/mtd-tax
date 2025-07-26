@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     Dialog,
+    DialogClose,
     DialogContent,
     DialogHeader,
     DialogTitle,
@@ -50,6 +51,7 @@ import {
     AlertCircle,
     CheckCircle,
     AlertTriangle,
+    Undo,
 } from 'lucide-react';
 import { Button } from '@workspace/ui/components/button';
 import { Input } from '@workspace/ui/components/input';
@@ -426,10 +428,10 @@ export default function UploadDialog({
     const [isDragOver, setIsDragOver] = useState(false);
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     // const [uploadedDocument, setUploadedDocument] = useState<any>(null);
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [tempTransactions, setTempTransactions] = useState<
         DocumentTransaction[]
     >([]);
+
     const [editingTransaction, setEditingTransaction] = useState<string | null>(
         null,
     );
@@ -482,6 +484,12 @@ export default function UploadDialog({
             queryClient.invalidateQueries({
                 queryKey: ['client-documents', clientId],
             });
+            queryClient.invalidateQueries({
+                queryKey: ['transaction-statistics', clientId],
+            });
+            queryClient.invalidateQueries({
+                queryKey: ['filtered-transactions', clientId],
+            });
             // Start processing
             // processDocument(data.documentId);
         },
@@ -504,15 +512,6 @@ export default function UploadDialog({
             toast.error(`Processing failed: ${error.message}`);
         },
     });
-
-    // Get document transactions
-    // const { data: documentTransactions, refetch: refetchTransactions } =
-    //     useQuery({
-    //         queryKey: ['document-transactions', uploadedDocument?.id],
-    //         queryFn: () =>
-    //             documentsService.getDocumentTransactions(uploadedDocument!.id),
-    //         enabled: !!uploadedDocument?.id,
-    //     });
 
     // Get document transactions for edit mode
     const { data: documentTransactions, refetch: refetchTransactions } =
@@ -583,6 +582,59 @@ export default function UploadDialog({
         },
     });
 
+    // Download document mutation
+    const downloadDocumentMutation = useMutation({
+        mutationFn: async (documentId: string) => {
+            const result =
+                await documentsService.getDocumentDownloadUrl(documentId);
+            return result.downloadUrl;
+        },
+        onSuccess: (downloadUrl) => {
+            window.open(downloadUrl, '_blank');
+            toast.success('Download started');
+        },
+        onError: (error: any) => {
+            toast.error(`Failed to download document: ${error.message}`);
+        },
+    });
+
+    // Delete transaction mutation
+    const deleteTransactionMutation = useMutation({
+        mutationFn: async (transactionId: string) => {
+            await documentsService.deleteTransaction(transactionId);
+        },
+        onSuccess: () => {
+            toast.success('Transaction deleted successfully');
+            // Remove from temp transactions if it exists there
+            setTempTransactions((prev) =>
+                prev.filter(
+                    (transaction) => transaction.id !== editingTransaction,
+                ),
+            );
+            setEditingTransaction(null);
+            // Refetch transactions in edit mode
+            if (isEditMode && editDocument?.id) {
+                refetchTransactions();
+            }
+        },
+        onError: (error: any) => {
+            toast.error(`Failed to delete transaction: ${error.message}`);
+        },
+    });
+
+    // Bulk delete transactions mutation
+    const deleteBulkTransactionsMutation = useMutation({
+        mutationFn: async (transactionIds: string[]) => {
+            await documentsService.deleteBulkTransactions(transactionIds);
+        },
+        onSuccess: () => {
+            toast.success('Transactions deleted successfully');
+        },
+        onError: (error: any) => {
+            toast.error(`Failed to delete transactions: ${error.message}`);
+        },
+    });
+
     const queryClient = useQueryClient();
 
     const uploadDocumentWithTransactionsMutation = useMutation({
@@ -599,7 +651,6 @@ export default function UploadDialog({
             transactions: any[];
             documentId: string;
         }) => {
-            debugger;
             if (isEditMode) {
                 return documentsService.updateDocumentTransactions(
                     documentId,
@@ -627,9 +678,16 @@ export default function UploadDialog({
             setIsOpenDialog(false);
             onClose?.();
             setTempTransactions([]);
+            setEditingTransaction(null);
+            setShowAddForm(false);
             queryClient.invalidateQueries({
                 queryKey: ['client-documents', clientId],
             });
+            if (isEditMode && editDocument?.id) {
+                queryClient.invalidateQueries({
+                    queryKey: ['document-transactions', editDocument.id],
+                });
+            }
         },
         onError: (error: any) => {
             toast.error(
@@ -644,7 +702,6 @@ export default function UploadDialog({
             setUploadStatus('idle');
             setUploadProgress(0);
             setValidationResult(null);
-            debugger;
             try {
                 await uploadMutation(file);
             } catch (error) {
@@ -729,6 +786,11 @@ export default function UploadDialog({
             return;
         }
 
+        if (isEditMode && !editDocument?.id) {
+            toast.error('No document to edit');
+            return;
+        }
+
         try {
             // Convert temp transactions to regular transactions format
             const transactionsToSave = tempTransactions.map((temp) => ({
@@ -753,8 +815,6 @@ export default function UploadDialog({
                 transactions: transactionsToSave,
                 documentId: editDocument?.id || uploadData?.id || '',
             });
-
-            // Clear temp transactions
         } catch (error: any) {
             toast.error(`Failed to approve transactions: ${error.message}`);
         }
@@ -782,9 +842,14 @@ export default function UploadDialog({
 
     const handleDeleteTransaction = (transactionId: string) => {
         setTempTransactions((prev) =>
-            prev.filter((transaction) => transaction.id !== transactionId),
+            prev.map((transaction) => ({
+                ...transaction,
+                isDeleted:
+                    transaction.id === transactionId
+                        ? true
+                        : transaction.isDeleted,
+            })),
         );
-        toast.success('Transaction deleted successfully');
     };
 
     const handleCancelEdit = () => {
@@ -813,11 +878,19 @@ export default function UploadDialog({
     };
 
     const handleExport = () => {
-        if (uploadData?.s3Url) {
+        const documentId = editDocument?.id || uploadData?.id;
+        if (documentId) {
             exportMutation.mutate({
-                documentId: uploadData.id,
+                documentId,
                 format: 'csv',
             });
+        }
+    };
+
+    const handleDownloadDocument = () => {
+        const documentId = editDocument?.id || uploadData?.id;
+        if (documentId) {
+            downloadDocumentMutation.mutate(documentId);
         }
     };
 
@@ -985,7 +1058,17 @@ export default function UploadDialog({
     //     ];
     //     setTransactions(allTransactions);
     // }, [documentTransactions, tempTransactions]);
-
+    const handleUndoTransaction = (transactionId: string) => {
+        setTempTransactions((prev) =>
+            prev.map((transaction) => ({
+                ...transaction,
+                isDeleted:
+                    transaction.id === transactionId
+                        ? false
+                        : transaction.isDeleted,
+            })),
+        );
+    };
     return (
         <Dialog
             open={isOpenDialog}
@@ -995,30 +1078,63 @@ export default function UploadDialog({
             }}
         >
             <DialogTrigger asChild>{children}</DialogTrigger>
-            <DialogContent className="max-w-7xl md:max-w-[1400px] max-h-[90vh] overflow-hidden p-0 space-y-0 gap-0">
+            <DialogContent
+                className="max-w-7xl md:max-w-[1400px] max-h-[90vh] overflow-hidden p-0 space-y-0 gap-0"
+                showCloseButton={false}
+            >
                 <DialogHeader className="px-6 py-4 border-b border-gray-200">
-                    <div className="flex justify-between items-center">
-                        <div className="flex items-center">
-                            <FileText className="w-5 h-5 text-blue-600 mr-2.5" />
-                            <DialogTitle className="text-xl font-semibold text-gray-900">
-                                {editDocument
-                                    ? 'Edit Document'
-                                    : 'Extracted Transactions'}
-                            </DialogTitle>
-                        </div>
-                        <div className="flex items-center">
-                            <span className="text-sm text-gray-600 mr-5">
-                                <span className="font-medium text-gray-900">
+                    <div className="flex items-center gap-2">
+                        <div className="flex-1 flex justify-between items-center">
+                            <div className="flex items-center">
+                                <FileText className="w-5 h-5 text-blue-600 mr-2.5" />
+                                <DialogTitle className="text-xl font-semibold text-gray-900">
                                     {editDocument
-                                        ? editDocument.originalFileName ||
-                                          editDocument.fileName ||
-                                          'Document'
-                                        : uploadedFile
-                                          ? uploadedFile.name
-                                          : documentName}
+                                        ? 'Edit Document'
+                                        : 'Extracted Transactions'}
+                                </DialogTitle>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm text-gray-600">
+                                    <span className="font-medium text-gray-900">
+                                        {editDocument
+                                            ? editDocument.originalFileName ||
+                                              editDocument.fileName ||
+                                              'Document'
+                                            : uploadedFile
+                                              ? uploadedFile.name
+                                              : documentName}
+                                    </span>
                                 </span>
-                            </span>
+                                {(editDocument || uploadData) && (
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleDownloadDocument}
+                                            disabled={
+                                                downloadDocumentMutation.isPending
+                                            }
+                                        >
+                                            {downloadDocumentMutation.isPending ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Download className="w-4 h-4" />
+                                            )}
+                                            Download
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
+                        <DialogClose asChild>
+                            <Button
+                                variant="outline"
+                                className="ml-auto"
+                                size="sm"
+                            >
+                                <X className="w-4 h-4" />
+                            </Button>
+                        </DialogClose>
                     </div>
                 </DialogHeader>
 
@@ -1260,14 +1376,14 @@ export default function UploadDialog({
                                 <span className="text-blue-600 font-semibold">
                                     {isEditMode
                                         ? documentTransactions?.length || 0
-                                        : transactions.length}
+                                        : tempTransactions.length}
                                 </span>{' '}
                                 Transactions Extracted
-                                {tempTransactions.length > 0 && (
+                                {/* {tempTransactions.length > 0 && (
                                     <span className="text-orange-600 font-semibold ml-2">
                                         ({tempTransactions.length} temp)
                                     </span>
-                                )}
+                                )} */}
                             </div>
                             <div className="flex gap-3">
                                 <Button
@@ -1299,7 +1415,10 @@ export default function UploadDialog({
                                     onClick={handleApproveAll}
                                     disabled={
                                         uploadDocumentWithTransactionsMutation.isPending ||
-                                        tempTransactions.length === 0
+                                        (!isEditMode &&
+                                            tempTransactions.length === 0) ||
+                                        (isEditMode &&
+                                            tempTransactions.length === 0)
                                     }
                                 >
                                     {uploadDocumentWithTransactionsMutation.isPending ? (
@@ -1308,7 +1427,7 @@ export default function UploadDialog({
                                         <Check className="w-3 h-3 mr-1" />
                                     )}
                                     {isEditMode
-                                        ? 'Save Changes'
+                                        ? `Save Changes${tempTransactions.filter((transaction) => transaction.isDeleted).length > 0 ? ` (${tempTransactions.filter((transaction) => transaction.isDeleted).length} to delete)` : ''}`
                                         : `Approve All (${tempTransactions.length})`}
                                 </Button>
                                 {!isEditMode && tempTransactions.length > 0 && (
@@ -1385,7 +1504,13 @@ export default function UploadDialog({
                                                     }
                                                 />
                                             ) : (
-                                                <tr className="border-b border-gray-200 hover:bg-gray-50">
+                                                <tr
+                                                    className={`border-b border-gray-200 hover:bg-gray-50 ${
+                                                        transaction.isDeleted
+                                                            ? 'bg-red-50 opacity-60'
+                                                            : ''
+                                                    }`}
+                                                >
                                                     <td className="p-3 text-sm align-middle">
                                                         {new Date(
                                                             transaction.transactionDate,
@@ -1395,6 +1520,12 @@ export default function UploadDialog({
                                                         {
                                                             transaction.description
                                                         }
+                                                        {transaction.isDeleted && (
+                                                            <Badge className="ml-2 text-xs bg-red-100 text-red-800">
+                                                                Marked for
+                                                                deletion
+                                                            </Badge>
+                                                        )}
                                                     </td>
                                                     <td className="p-3 text-sm align-middle">
                                                         <div className="flex items-center gap-2 flex-wrap">
@@ -1424,32 +1555,60 @@ export default function UploadDialog({
                                                     </td>
                                                     <td className="p-3 text-sm align-middle text-center">
                                                         <div className="flex justify-center gap-1.5">
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="w-8 h-8 p-0"
-                                                                onClick={() =>
-                                                                    handleEditTransaction(
-                                                                        transaction.id ??
-                                                                            '',
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Edit className="w-3 h-3" />
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="w-8 h-8 p-0"
-                                                                onClick={() =>
-                                                                    handleDeleteTransaction(
-                                                                        transaction.id ||
-                                                                            '',
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Trash className="w-3 h-3" />
-                                                            </Button>
+                                                            {transaction.isDeleted ? (
+                                                                // Show undo button for deleted transactions
+                                                                <Button
+                                                                    size="icon"
+                                                                    variant="outline"
+                                                                    className="w-8 h-8 p-0"
+                                                                    onClick={() =>
+                                                                        handleUndoTransaction(
+                                                                            transaction.id ||
+                                                                                '',
+                                                                        )
+                                                                    }
+                                                                    title="Undo deletion"
+                                                                >
+                                                                    <Undo className="w-3 h-3 " />
+                                                                </Button>
+                                                            ) : (
+                                                                // Show edit and delete buttons for normal transactions
+                                                                <>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="w-8 h-8 p-0"
+                                                                        onClick={() =>
+                                                                            handleEditTransaction(
+                                                                                transaction.id ??
+                                                                                    '',
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Edit className="w-3 h-3" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        size="sm"
+                                                                        variant="outline"
+                                                                        className="w-8 h-8 p-0"
+                                                                        onClick={() =>
+                                                                            handleDeleteTransaction(
+                                                                                transaction.id ||
+                                                                                    '',
+                                                                            )
+                                                                        }
+                                                                        disabled={
+                                                                            deleteTransactionMutation.isPending
+                                                                        }
+                                                                    >
+                                                                        {deleteTransactionMutation.isPending ? (
+                                                                            <Loader2 className="w-3 h-3 animate-spin" />
+                                                                        ) : (
+                                                                            <Trash className="w-3 h-3" />
+                                                                        )}
+                                                                    </Button>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     </td>
                                                 </tr>

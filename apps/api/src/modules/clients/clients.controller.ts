@@ -17,6 +17,7 @@ import {
     ApiResponse,
     ApiParam,
     ApiBearerAuth,
+    ApiQuery,
 } from '@nestjs/swagger';
 import { InsertClient, insertClientSchema } from '@workspace/database';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -375,6 +376,308 @@ export class ClientsController {
     })
     getClientTransactions(@Param('id') id: string) {
         return this.clientsService.getClientTransactions(id);
+    }
+
+    @Get(':id/transactions/filtered')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get filtered client transactions' })
+    @ApiQuery({
+        name: 'search',
+        required: false,
+        description: 'Search in description',
+    })
+    @ApiQuery({
+        name: 'businessId',
+        required: false,
+        description: 'Filter by business ID',
+    })
+    @ApiQuery({
+        name: 'category',
+        required: false,
+        description: 'Filter by category',
+    })
+    @ApiQuery({
+        name: 'status',
+        required: false,
+        description: 'Filter by status',
+    })
+    @ApiQuery({
+        name: 'type',
+        required: false,
+        description: 'Filter by transaction type (income/expense)',
+    })
+    @ApiQuery({
+        name: 'dateFrom',
+        required: false,
+        description: 'Filter from date (YYYY-MM-DD)',
+    })
+    @ApiQuery({
+        name: 'dateTo',
+        required: false,
+        description: 'Filter to date (YYYY-MM-DD)',
+    })
+    @ApiQuery({
+        name: 'amountMin',
+        required: false,
+        description: 'Minimum amount',
+    })
+    @ApiQuery({
+        name: 'amountMax',
+        required: false,
+        description: 'Maximum amount',
+    })
+    @ApiQuery({
+        name: 'page',
+        required: false,
+        description: 'Page number',
+        type: 'number',
+    })
+    @ApiQuery({
+        name: 'limit',
+        required: false,
+        description: 'Items per page',
+        type: 'number',
+    })
+    @ApiQuery({ name: 'sortBy', required: false, description: 'Sort field' })
+    @ApiQuery({
+        name: 'sortOrder',
+        required: false,
+        description: 'Sort order (asc/desc)',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Filtered transactions retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                transactions: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            id: { type: 'string' },
+                            clientId: { type: 'string' },
+                            businessId: { type: 'string' },
+                            description: { type: 'string' },
+                            amount: { type: 'number' },
+                            type: { type: 'string' },
+                            category: { type: 'string' },
+                            status: { type: 'string' },
+                            transactionDate: { type: 'string' },
+                            currency: { type: 'string' },
+                            documentId: { type: 'string' },
+                            createdAt: { type: 'string' },
+                        },
+                    },
+                },
+                pagination: {
+                    type: 'object',
+                    properties: {
+                        page: { type: 'number' },
+                        limit: { type: 'number' },
+                        total: { type: 'number' },
+                        totalPages: { type: 'number' },
+                    },
+                },
+            },
+        },
+    })
+    getFilteredTransactions(
+        @Param('id') id: string,
+        @Query('search') search?: string,
+        @Query('businessId') businessId?: string,
+        @Query('category') category?: string,
+        @Query('status') status?: string,
+        @Query('type') type?: string,
+        @Query('dateFrom') dateFrom?: string,
+        @Query('dateTo') dateTo?: string,
+        @Query('amountMin') amountMin?: string,
+        @Query('amountMax') amountMax?: string,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+        @Query('sortBy') sortBy?: string,
+        @Query('sortOrder') sortOrder?: string,
+    ) {
+        return this.clientsService.getFilteredTransactions(id, {
+            search,
+            businessId,
+            category,
+            status,
+            type,
+            dateFrom,
+            dateTo,
+            amountMin: amountMin ? parseFloat(amountMin) : undefined,
+            amountMax: amountMax ? parseFloat(amountMax) : undefined,
+            page: page ? parseInt(page) : 1,
+            limit: limit ? parseInt(limit) : 10,
+            sortBy,
+            sortOrder: sortOrder as 'asc' | 'desc' | undefined,
+        });
+    }
+
+    @Get(':id/transactions/statistics')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get client transaction statistics' })
+    @ApiQuery({
+        name: 'businessId',
+        required: false,
+        description: 'Filter by business ID',
+    })
+    @ApiQuery({
+        name: 'dateFrom',
+        required: false,
+        description: 'Filter from date (YYYY-MM-DD)',
+    })
+    @ApiQuery({
+        name: 'dateTo',
+        required: false,
+        description: 'Filter to date (YYYY-MM-DD)',
+    })
+    @ApiQuery({
+        name: 'category',
+        required: false,
+        description: 'Filter by category',
+    })
+    @ApiQuery({
+        name: 'status',
+        required: false,
+        description: 'Filter by status',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Transaction statistics retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                summary: {
+                    type: 'object',
+                    properties: {
+                        totalIncome: { type: 'number' },
+                        totalExpenses: { type: 'number' },
+                        netProfit: { type: 'number' },
+                        totalTransactions: { type: 'number' },
+                        averageTransactionAmount: { type: 'number' },
+                    },
+                },
+                byCategory: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            category: { type: 'string' },
+                            count: { type: 'number' },
+                            totalAmount: { type: 'number' },
+                            averageAmount: { type: 'number' },
+                        },
+                    },
+                },
+                byStatus: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            status: { type: 'string' },
+                            count: { type: 'number' },
+                            totalAmount: { type: 'number' },
+                        },
+                    },
+                },
+                byBusiness: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            businessId: { type: 'string' },
+                            businessName: { type: 'string' },
+                            count: { type: 'number' },
+                            totalAmount: { type: 'number' },
+                        },
+                    },
+                },
+                monthlyTrends: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            month: { type: 'string' },
+                            income: { type: 'number' },
+                            expenses: { type: 'number' },
+                            netProfit: { type: 'number' },
+                            transactionCount: { type: 'number' },
+                        },
+                    },
+                },
+            },
+        },
+    })
+    getTransactionStatistics(
+        @Param('id') id: string,
+        @Query('businessId') businessId?: string,
+        @Query('dateFrom') dateFrom?: string,
+        @Query('dateTo') dateTo?: string,
+        @Query('category') category?: string,
+        @Query('status') status?: string,
+    ) {
+        return this.clientsService.getTransactionStatistics(id, {
+            businessId,
+            dateFrom,
+            dateTo,
+            category,
+            status,
+        });
+    }
+
+    @Get(':id/transactions/categories')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary: 'Get available transaction categories for client',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Transaction categories retrieved successfully',
+        schema: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    category: { type: 'string' },
+                    count: { type: 'number' },
+                    totalAmount: { type: 'number' },
+                },
+            },
+        },
+    })
+    getTransactionCategories(@Param('id') id: string) {
+        return this.clientsService.getTransactionCategories(id);
+    }
+
+    @Get(':id/transactions/businesses')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary: 'Get available businesses for client transactions',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Client businesses retrieved successfully',
+        schema: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    businessId: { type: 'string' },
+                    businessName: { type: 'string' },
+                    count: { type: 'number' },
+                    totalAmount: { type: 'number' },
+                },
+            },
+        },
+    })
+    getClientBusinesses(@Param('id') id: string) {
+        return this.clientsService.getClientBusinesses(id);
     }
 
     @Get(':id/documents')

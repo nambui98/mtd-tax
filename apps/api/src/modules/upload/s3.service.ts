@@ -10,6 +10,7 @@ import {
     AbortMultipartUploadCommand,
     HeadObjectCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ConfigService } from '@nestjs/config';
 
 export interface UploadResult {
@@ -251,27 +252,29 @@ export class S3Service {
         }
     }
 
-    // async getSignedDownloadUrl(
-    //     key: string,
-    //     expiresIn: number = 3600,
-    // ): Promise<string> {
-    //     try {
-    //         const command = new GetObjectCommand({
-    //             Bucket: this.bucketName,
-    //             Key: key,
-    //         });
-
-    //         return await getSignedUrl(this.s3Client, command, { expiresIn });
-    //     } catch (error) {
-    //         this.logger.error(
-    //             `Failed to generate signed URL for ${key}:`,
-    //             error,
-    //         );
-    //         throw new Error(
-    //             `Failed to generate download URL: ${error.message}`,
-    //         );
-    //     }
-    // }
+    async getSignedDownloadUrl(
+        key: string,
+        expiresIn: number = 3600,
+    ): Promise<string> {
+        try {
+            const command = new GetObjectCommand({
+                Bucket: this.bucketName,
+                Key: key,
+            });
+            const url = await getSignedUrl(this.s3Client, command, {
+                expiresIn,
+            });
+            return url;
+        } catch (error) {
+            this.logger.error(
+                `Failed to generate signed URL for ${key}:`,
+                error,
+            );
+            throw new Error(
+                `Failed to generate download URL: ${error.message}`,
+            );
+        }
+    }
 
     async deleteFile(key: string): Promise<void> {
         try {

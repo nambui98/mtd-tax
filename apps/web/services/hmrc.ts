@@ -230,7 +230,7 @@ export const hmrcService = {
         clientId: string,
         businessId: string,
         nino: string,
-        typeOfBusiness: string,
+        typeOfBusiness?: TypeOfBusiness,
         taxYear: string = '2024-25',
     ): Promise<{
         businessDetails: Business | null;

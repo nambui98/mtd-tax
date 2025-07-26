@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Inject, Injectable } from '@nestjs/common';
 import { UpdateClientDto } from './dto/update-client.dto';
 import {
@@ -6,10 +5,25 @@ import {
     InsertClient,
     usersTable,
     ClientType,
+    documentTransactionsTable,
+    hmrcTransactionsTable,
 } from '@workspace/database';
 import { DATABASE_CONNECTION } from '../../database/database.module';
 import { Database } from '@workspace/database';
-import { desc, eq, and, ilike, or } from 'drizzle-orm';
+import {
+    desc,
+    eq,
+    and,
+    ilike,
+    or,
+    gte,
+    lte,
+    sql,
+    count,
+    sum,
+    avg,
+    between,
+} from 'drizzle-orm';
 import { NotFoundException } from '@nestjs/common';
 
 @Injectable()
@@ -248,6 +262,364 @@ export class ClientsService {
                 createdAt: '2026-06-08T10:00:00Z',
             },
         ];
+    }
+
+    async getFilteredTransactions(
+        clientId: string,
+        filters: {
+            search?: string;
+            businessId?: string;
+            category?: string;
+            status?: string;
+            type?: string;
+            dateFrom?: string;
+            dateTo?: string;
+            amountMin?: number;
+            amountMax?: number;
+            page?: number;
+            limit?: number;
+            sortBy?: string;
+            sortOrder?: 'asc' | 'desc';
+        },
+    ) {
+        const page = filters.page || 1;
+        const limit = filters.limit || 20;
+        const offset = (page - 1) * limit;
+
+        // Build where conditions
+        const whereConditions = [
+            eq(documentTransactionsTable.clientId, clientId),
+        ];
+
+        if (filters.search) {
+            whereConditions.push(
+                ilike(
+                    documentTransactionsTable.description,
+                    `%${filters.search}%`,
+                ),
+            );
+        }
+
+        if (filters.businessId) {
+            whereConditions.push(
+                eq(documentTransactionsTable.businessId, filters.businessId),
+            );
+        }
+
+        if (filters.category) {
+            whereConditions.push(
+                eq(documentTransactionsTable.category, filters.category),
+            );
+        }
+
+        if (filters.status) {
+            whereConditions.push(
+                eq(documentTransactionsTable.status, filters.status),
+            );
+        }
+
+        if (filters.type) {
+            // For type filtering, we need to determine if it's income or expense based on amount
+            if (filters.type === 'income') {
+                whereConditions.push(
+                    sql`${documentTransactionsTable.amount} > 0`,
+                );
+            } else if (filters.type === 'expense') {
+                whereConditions.push(
+                    sql`${documentTransactionsTable.amount} < 0`,
+                );
+            }
+        }
+
+        if (filters.dateFrom) {
+            whereConditions.push(
+                gte(
+                    documentTransactionsTable.transactionDate,
+                    filters.dateFrom,
+                ),
+            );
+        }
+
+        if (filters.dateTo) {
+            whereConditions.push(
+                lte(documentTransactionsTable.transactionDate, filters.dateTo),
+            );
+        }
+
+        if (filters.amountMin !== undefined) {
+            whereConditions.push(
+                gte(
+                    documentTransactionsTable.amount,
+                    filters.amountMin.toString(),
+                ),
+            );
+        }
+
+        if (filters.amountMax !== undefined) {
+            whereConditions.push(
+                lte(
+                    documentTransactionsTable.amount,
+                    filters.amountMax.toString(),
+                ),
+            );
+        }
+
+        // Build order by
+        let orderBy = desc(documentTransactionsTable.transactionDate);
+        if (filters.sortBy) {
+            const sortField =
+                filters.sortBy as keyof typeof documentTransactionsTable;
+            if (filters.sortBy in documentTransactionsTable) {
+                orderBy =
+                    filters.sortOrder === 'asc'
+                        ? sql`${documentTransactionsTable[sortField]} ASC`
+                        : sql`${documentTransactionsTable[sortField]} DESC`;
+            }
+        }
+
+        // Get total count
+        const totalResult = await this.db
+            .select({ count: count() })
+            .from(documentTransactionsTable)
+            .where(and(...whereConditions));
+
+        const total = totalResult[0]?.count || 0;
+
+        // Get transactions
+        const transactions = await this.db
+            .select()
+            .from(documentTransactionsTable)
+            .where(and(...whereConditions))
+            .orderBy(orderBy)
+            .limit(limit)
+            .offset(offset);
+
+        return {
+            transactions: transactions.map((t) => ({
+                id: t.id,
+                clientId: t.clientId,
+                businessId: t.businessId,
+                description: t.description,
+                amount: parseFloat(t.amount),
+                type: parseFloat(t.amount) > 0 ? 'income' : 'expense',
+                category: t.category,
+                status: t.status,
+                transactionDate: t.transactionDate,
+                currency: t.currency,
+                documentId: t.documentId,
+                createdAt: t.createdAt,
+            })),
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+        };
+    }
+
+    async getTransactionStatistics(
+        clientId: string,
+        filters: {
+            businessId?: string;
+            dateFrom?: string;
+            dateTo?: string;
+            category?: string;
+            status?: string;
+        },
+    ) {
+        // Build where conditions
+        const whereConditions = [
+            eq(documentTransactionsTable.clientId, clientId),
+        ];
+
+        if (filters.businessId) {
+            whereConditions.push(
+                eq(documentTransactionsTable.businessId, filters.businessId),
+            );
+        }
+
+        if (filters.dateFrom) {
+            whereConditions.push(
+                gte(
+                    documentTransactionsTable.transactionDate,
+                    filters.dateFrom,
+                ),
+            );
+        }
+
+        if (filters.dateTo) {
+            whereConditions.push(
+                lte(documentTransactionsTable.transactionDate, filters.dateTo),
+            );
+        }
+
+        if (filters.category) {
+            whereConditions.push(
+                eq(documentTransactionsTable.category, filters.category),
+            );
+        }
+
+        if (filters.status) {
+            whereConditions.push(
+                eq(documentTransactionsTable.status, filters.status),
+            );
+        }
+
+        // Get summary statistics
+        const summaryResult = await this.db
+            .select({
+                totalIncome: sum(
+                    sql`CASE WHEN ${documentTransactionsTable.amount} > 0 THEN ${documentTransactionsTable.amount} ELSE 0 END`,
+                ),
+                totalExpenses: sum(
+                    sql`CASE WHEN ${documentTransactionsTable.amount} < 0 THEN ABS(${documentTransactionsTable.amount}) ELSE 0 END`,
+                ),
+                totalTransactions: count(),
+                averageAmount: avg(documentTransactionsTable.amount),
+            })
+            .from(documentTransactionsTable)
+            .where(and(...whereConditions));
+
+        const summary = summaryResult[0];
+        const totalIncome = parseFloat(summary?.totalIncome || '0');
+        const totalExpenses = parseFloat(summary?.totalExpenses || '0');
+        const netProfit = totalIncome - totalExpenses;
+
+        // Get statistics by category
+        const categoryStats = await this.db
+            .select({
+                category: documentTransactionsTable.category,
+                count: count(),
+                totalAmount: sum(documentTransactionsTable.amount),
+                averageAmount: avg(documentTransactionsTable.amount),
+            })
+            .from(documentTransactionsTable)
+            .where(and(...whereConditions))
+            .groupBy(documentTransactionsTable.category);
+
+        // Get statistics by status
+        const statusStats = await this.db
+            .select({
+                status: documentTransactionsTable.status,
+                count: count(),
+                totalAmount: sum(documentTransactionsTable.amount),
+            })
+            .from(documentTransactionsTable)
+            .where(and(...whereConditions))
+            .groupBy(documentTransactionsTable.status);
+
+        // Get statistics by business
+        const businessStats = await this.db
+            .select({
+                businessId: documentTransactionsTable.businessId,
+                count: count(),
+                totalAmount: sum(documentTransactionsTable.amount),
+            })
+            .from(documentTransactionsTable)
+            .where(and(...whereConditions))
+            .groupBy(documentTransactionsTable.businessId);
+
+        // Get monthly trends (last 12 months)
+        const monthlyTrends = await this.db
+            .select({
+                month: sql`DATE_TRUNC('month', ${documentTransactionsTable.transactionDate})`,
+                income: sum(
+                    sql`CASE WHEN ${documentTransactionsTable.amount} > 0 THEN ${documentTransactionsTable.amount} ELSE 0 END`,
+                ),
+                expenses: sum(
+                    sql`CASE WHEN ${documentTransactionsTable.amount} < 0 THEN ABS(${documentTransactionsTable.amount}) ELSE 0 END`,
+                ),
+                transactionCount: count(),
+            })
+            .from(documentTransactionsTable)
+            .where(and(...whereConditions))
+            .groupBy(
+                sql`DATE_TRUNC('month', ${documentTransactionsTable.transactionDate})`,
+            )
+            .orderBy(
+                sql`DATE_TRUNC('month', ${documentTransactionsTable.transactionDate}) DESC`,
+            )
+            .limit(12);
+
+        return {
+            summary: {
+                totalIncome,
+                totalExpenses,
+                netProfit,
+                totalTransactions: parseInt(
+                    summary?.totalTransactions.toString(),
+                ),
+                averageTransactionAmount: parseFloat(
+                    summary?.averageAmount || '0',
+                ),
+            },
+            byCategory: categoryStats.map((stat) => ({
+                category: stat.category,
+                count: parseInt(stat.count.toString()),
+                totalAmount: parseFloat(stat.totalAmount || '0'),
+                averageAmount: parseFloat(stat.averageAmount || '0'),
+            })),
+            byStatus: statusStats.map((stat) => ({
+                status: stat.status,
+                count: parseInt(stat.count.toString()),
+                totalAmount: parseFloat(stat.totalAmount || '0'),
+            })),
+            byBusiness: businessStats.map((stat) => ({
+                businessId: stat.businessId,
+                businessName: stat.businessId, // In a real app, you'd join with a businesses table
+                count: parseInt(stat.count.toString()),
+                totalAmount: parseFloat(stat.totalAmount || '0'),
+            })),
+            monthlyTrends: monthlyTrends.map((trend) => ({
+                month: trend.month,
+                income: parseFloat(trend.income || '0'),
+                expenses: parseFloat(trend.expenses || '0'),
+                netProfit:
+                    parseFloat(trend.income || '0') -
+                    parseFloat(trend.expenses || '0'),
+                transactionCount: parseInt(trend.transactionCount.toString()),
+            })),
+        };
+    }
+
+    async getTransactionCategories(clientId: string) {
+        const categories = await this.db
+            .select({
+                category: documentTransactionsTable.category,
+                count: count(),
+                totalAmount: sum(documentTransactionsTable.amount),
+            })
+            .from(documentTransactionsTable)
+            .where(eq(documentTransactionsTable.clientId, clientId))
+            .groupBy(documentTransactionsTable.category)
+            .orderBy(documentTransactionsTable.category);
+
+        return categories.map((cat) => ({
+            category: cat.category,
+            count: parseInt(cat.count.toString()),
+            totalAmount: parseFloat(cat.totalAmount || '0'),
+        }));
+    }
+
+    async getClientBusinesses(clientId: string) {
+        const businesses = await this.db
+            .select({
+                businessId: documentTransactionsTable.businessId,
+                count: count(),
+                totalAmount: sum(documentTransactionsTable.amount),
+            })
+            .from(documentTransactionsTable)
+            .where(eq(documentTransactionsTable.clientId, clientId))
+            .groupBy(documentTransactionsTable.businessId)
+            .orderBy(documentTransactionsTable.businessId);
+
+        return businesses.map((business) => ({
+            businessId: business.businessId,
+            businessName: business.businessId, // In a real app, you'd join with a businesses table
+            count: parseInt(business.count.toString()),
+            totalAmount: parseFloat(business.totalAmount || '0'),
+        }));
     }
 
     getClientDocuments(clientId: string) {

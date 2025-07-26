@@ -18,6 +18,92 @@ export type Transaction = {
     createdAt: string;
 };
 
+export type TransactionFilters = {
+    search?: string;
+    businessId?: string;
+    category?: string;
+    status?: string;
+    type?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    amountMin?: number;
+    amountMax?: number;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+};
+
+export type TransactionStatistics = {
+    summary: {
+        totalIncome: number;
+        totalExpenses: number;
+        netProfit: number;
+        totalTransactions: number;
+        averageTransactionAmount: number;
+    };
+    byCategory: Array<{
+        category: string;
+        count: number;
+        totalAmount: number;
+        averageAmount: number;
+    }>;
+    byStatus: Array<{
+        status: string;
+        count: number;
+        totalAmount: number;
+    }>;
+    byBusiness: Array<{
+        businessId: string;
+        businessName: string;
+        count: number;
+        totalAmount: number;
+    }>;
+    monthlyTrends: Array<{
+        month: string;
+        income: number;
+        expenses: number;
+        netProfit: number;
+        transactionCount: number;
+    }>;
+};
+
+export type TransactionCategory = {
+    category: string;
+    count: number;
+    totalAmount: number;
+};
+
+export type ClientBusiness = {
+    businessId: string;
+    businessName: string;
+    count: number;
+    totalAmount: number;
+};
+
+export type FilteredTransactionsResponse = {
+    transactions: Array<{
+        id: string;
+        clientId: string;
+        businessId?: string;
+        description: string;
+        amount: number;
+        type: 'income' | 'expense';
+        category: string;
+        status: string;
+        transactionDate: string;
+        currency: string;
+        documentId: string;
+        createdAt: string;
+    }>;
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
+};
+
 export type Document = {
     id: string;
     clientId: string;
@@ -211,6 +297,66 @@ export const clientsService = {
     getClientTransactions: async (clientId: string): Promise<Transaction[]> => {
         const response = await api.get(`/clients/${clientId}/transactions`);
         return response.data;
+    },
+
+    getFilteredTransactions: async (
+        clientId: string,
+        filters: TransactionFilters,
+    ): Promise<FilteredTransactionsResponse> => {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+                params.append(key, value.toString());
+            }
+        });
+
+        const response = await api.get(
+            `/clients/${clientId}/transactions/filtered?${params.toString()}`,
+        );
+        return response.data.data;
+    },
+
+    getTransactionStatistics: async (
+        clientId: string,
+        filters?: {
+            businessId?: string;
+            dateFrom?: string;
+            dateTo?: string;
+            category?: string;
+            status?: string;
+        },
+    ): Promise<TransactionStatistics> => {
+        const params = new URLSearchParams();
+        if (filters) {
+            Object.entries(filters).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                    params.append(key, value.toString());
+                }
+            });
+        }
+
+        const response = await api.get(
+            `/clients/${clientId}/transactions/statistics?${params.toString()}`,
+        );
+        return response.data.data;
+    },
+
+    getTransactionCategories: async (
+        clientId: string,
+    ): Promise<TransactionCategory[]> => {
+        const response = await api.get(
+            `/clients/${clientId}/transactions/categories`,
+        );
+        return response.data.data;
+    },
+
+    getClientBusinesses: async (
+        clientId: string,
+    ): Promise<ClientBusiness[]> => {
+        const response = await api.get(
+            `/clients/${clientId}/transactions/businesses`,
+        );
+        return response.data.data;
     },
 
     getClientDocuments: async (clientId: string): Promise<Document[]> => {

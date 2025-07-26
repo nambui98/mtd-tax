@@ -35,14 +35,14 @@ import { Coins } from 'lucide-react';
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { hmrcService } from '@/services/hmrc';
-import ClientTransaction from './client-transaction';
 import ClientDocuments from './client-documents';
+import { TypeOfBusiness } from '@/types/document';
 
 type Props = {
     clientId: string;
     activeBusiness: string;
     nino: string;
-    typeOfBusiness: string;
+    typeOfBusiness?: TypeOfBusiness;
 };
 
 export default function ClientFinancials({
@@ -696,10 +696,6 @@ export default function ClientFinancials({
             </div>
 
             {/* Recent Transactions */}
-            <ClientTransaction
-                businessId={activeBusiness}
-                clientId={clientId}
-            />
 
             {/* Grid Layout for Additional Content */}
             <div className="grid grid-cols-3 gap-6">

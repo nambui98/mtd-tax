@@ -2,14 +2,17 @@
 import { clientsService } from '@/services/clients';
 import { hmrcService } from '@/services/hmrc';
 import { useQuery } from '@tanstack/react-query';
-import { Briefcase, Globe2, Home } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Briefcase, Globe2, Home, Mail, Plus } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import ClientFinancials from './client-financials';
 import ClientHeader from './client-header';
 import ClientTabNav from './client-tab-nav';
 import HmrcAuthStatus from './hmrc-auth-status';
 import HmrcBusinesses from './hmrc-businesses';
 import ClientDocuments from './client-documents';
+import ClientTransactions from './client-transactions';
+import { Button } from '@workspace/ui/components/button';
+import UploadDialog from '../../../documents/components/upload-dialog';
 
 export const getInvitationStatusBadge = (status?: string) => {
     switch (status) {
@@ -92,6 +95,14 @@ export default function ClientContent({ clientId }: Props) {
             enabled: !!client?.nino && !!client?.id,
         });
 
+    const typeOfBusiness = useMemo(
+        () =>
+            hmrcBusinesses?.businesses.listOfBusinesses.find(
+                (business) => business.businessId === activeBusiness,
+            )?.typeOfBusiness,
+        [hmrcBusinesses, activeBusiness],
+    );
+
     const {
         data: clientBusinessDetails,
         isLoading: isLoadingClientBusinessDetails,
@@ -140,6 +151,26 @@ export default function ClientContent({ clientId }: Props) {
             <ClientHeader
                 client={client}
                 businesses={hmrcBusinesses?.businesses.listOfBusinesses || []}
+                actions={
+                    activeTab === 'transactions' && (
+                        <div className="flex space-x-3">
+                            <UploadDialog
+                                clientId={clientId}
+                                businessId={activeBusiness}
+                                typeOfBusiness={typeOfBusiness}
+                            >
+                                <Button
+                                    variant={'default'}
+                                    size={'lg'}
+                                    className="text-base"
+                                >
+                                    <Plus className="w-4 h-4 mr-2" />
+                                    Add Transaction
+                                </Button>
+                            </UploadDialog>
+                        </div>
+                    )
+                }
             />
 
             {/* Tabs Navigation */}
@@ -169,12 +200,7 @@ export default function ClientContent({ clientId }: Props) {
                     clientId={clientId}
                     activeBusiness={activeBusiness}
                     nino={client.nino}
-                    typeOfBusiness={
-                        hmrcBusinesses?.businesses.listOfBusinesses.find(
-                            (business) =>
-                                business.businessId === activeBusiness,
-                        )?.typeOfBusiness || ''
-                    }
+                    typeOfBusiness={typeOfBusiness}
                 />
             )}
             {activeTab === 'overview' && (
@@ -190,6 +216,13 @@ export default function ClientContent({ clientId }: Props) {
                         isLoadingHmrcBusinesses={isLoadingHmrcBusinesses}
                     />
                 </>
+            )}
+            {activeTab === 'transactions' && (
+                <ClientTransactions
+                    clientId={clientId}
+                    businessId={activeBusiness}
+                    typeOfBusiness={typeOfBusiness}
+                />
             )}
         </div>
     );

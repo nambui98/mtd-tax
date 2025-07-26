@@ -7,9 +7,10 @@ import { ListOfBusiness } from '@/services/hmrc';
 type Props = {
     client: Client;
     businesses: ListOfBusiness[];
+    actions: React.ReactNode;
 };
 
-export default function ClientHeader({ client, businesses }: Props) {
+export default function ClientHeader({ client, businesses, actions }: Props) {
     return (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex justify-between items-start">
@@ -73,10 +74,12 @@ export default function ClientHeader({ client, businesses }: Props) {
                         <Edit className="w-4 h-4 mr-2" />
                         Edit Details
                     </button>
-                    <button className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors">
+
+                    {actions}
+                    {/* <button className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark transition-colors">
                         <ClipboardList className="w-4 h-4 mr-2" />
                         MTD Submission
-                    </button>
+                    </button> */}
                 </div>
             </div>
         </div>

@@ -67,6 +67,7 @@ import {
     PieChart,
     TrendingUp,
     TrendingDown,
+    Loader2,
 } from 'lucide-react';
 import {
     documentsService,
@@ -77,6 +78,7 @@ import {
 import { hmrcService } from '@/services/hmrc';
 import UploadDialog from './upload-dialog';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 export default function DocumentsContent() {
     const [selectedClient, setSelectedClient] = useState<string>('');
@@ -95,7 +97,6 @@ export default function DocumentsContent() {
         queryFn: () =>
             documentsService.getDocuments({
                 clientId: selectedClient || undefined,
-                folderId: selectedFolder || undefined,
                 search: searchTerm || undefined,
             }),
         enabled: true,
@@ -134,6 +135,37 @@ export default function DocumentsContent() {
             queryClient.invalidateQueries({ queryKey: ['documents'] });
             queryClient.invalidateQueries({ queryKey: ['document-stats'] });
             setUploadDialogOpen(false);
+        },
+    });
+
+    // Download document mutation
+    const downloadMutation = useMutation({
+        mutationFn: async (documentId: string) => {
+            const result =
+                await documentsService.getDocumentDownloadUrl(documentId);
+            return result.downloadUrl;
+        },
+        onSuccess: (downloadUrl) => {
+            window.open(downloadUrl, '_blank');
+            toast.success('Download started');
+        },
+        onError: (error: any) => {
+            toast.error(`Failed to download document: ${error.message}`);
+        },
+    });
+
+    // Delete document mutation
+    const deleteMutation = useMutation({
+        mutationFn: async (documentId: string) => {
+            await documentsService.deleteDocument(documentId);
+        },
+        onSuccess: () => {
+            toast.success('Document deleted successfully');
+            queryClient.invalidateQueries({ queryKey: ['documents'] });
+            queryClient.invalidateQueries({ queryKey: ['document-stats'] });
+        },
+        onError: (error: any) => {
+            toast.error(`Failed to delete document: ${error.message}`);
         },
     });
 
@@ -223,6 +255,25 @@ export default function DocumentsContent() {
     const handleDocumentClick = (document: Document) => {
         setSelectedDocument(document);
         setUploadDialogOpen(true);
+    };
+
+    const handleDownloadDocument = (
+        documentId: string,
+        e: React.MouseEvent,
+    ) => {
+        e.stopPropagation();
+        downloadMutation.mutate(documentId);
+    };
+
+    const handleDeleteDocument = (documentId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (
+            confirm(
+                'Are you sure you want to delete this document? This action cannot be undone.',
+            )
+        ) {
+            deleteMutation.mutate(documentId);
+        }
     };
 
     return (
@@ -467,11 +518,42 @@ export default function DocumentsContent() {
                                         getDocumentIcon(type),
                                     )}
                                     <div className="flex gap-1">
-                                        <Button variant="ghost" size="sm">
-                                            <Eye className="w-4 h-4" />
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) =>
+                                                handleDownloadDocument(
+                                                    document.id,
+                                                    e,
+                                                )
+                                            }
+                                            disabled={
+                                                downloadMutation.isPending
+                                            }
+                                        >
+                                            {downloadMutation.isPending ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Download className="w-4 h-4" />
+                                            )}
                                         </Button>
-                                        <Button variant="ghost" size="sm">
-                                            <MoreVertical className="w-4 h-4" />
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={(e) =>
+                                                handleDeleteDocument(
+                                                    document.id,
+                                                    e,
+                                                )
+                                            }
+                                            disabled={deleteMutation.isPending}
+                                            className="text-red-500 hover:text-red-700"
+                                        >
+                                            {deleteMutation.isPending ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Trash className="w-4 h-4" />
+                                            )}
                                         </Button>
                                     </div>
                                 </div>
@@ -601,11 +683,44 @@ export default function DocumentsContent() {
                                             >
                                                 <Eye className="w-4 h-4" />
                                             </Button>
-                                            <Button variant="ghost" size="sm">
-                                                <Download className="w-4 h-4" />
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={(e) =>
+                                                    handleDownloadDocument(
+                                                        document.id,
+                                                        e,
+                                                    )
+                                                }
+                                                disabled={
+                                                    downloadMutation.isPending
+                                                }
+                                            >
+                                                {downloadMutation.isPending ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <Download className="w-4 h-4" />
+                                                )}
                                             </Button>
-                                            <Button variant="ghost" size="sm">
-                                                <MoreVertical className="w-4 h-4" />
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={(e) =>
+                                                    handleDeleteDocument(
+                                                        document.id,
+                                                        e,
+                                                    )
+                                                }
+                                                disabled={
+                                                    deleteMutation.isPending
+                                                }
+                                                className="text-red-500 hover:text-red-700"
+                                            >
+                                                {deleteMutation.isPending ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <Trash className="w-4 h-4" />
+                                                )}
                                             </Button>
                                         </div>
                                     </TableCell>
@@ -626,6 +741,9 @@ export default function DocumentsContent() {
                     }}
                     documentName={selectedDocument.originalFileName}
                     documentType={selectedDocument.documentType as any}
+                    clientId={selectedDocument.clientId}
+                    businessId={selectedDocument.businessId}
+                    editDocument={selectedDocument}
                 />
             )}
         </div>

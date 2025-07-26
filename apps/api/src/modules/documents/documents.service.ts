@@ -8,7 +8,21 @@ import {
 import { Inject } from '@nestjs/common';
 import { DATABASE_CONNECTION } from '../../database/database.module';
 import { Database } from '@workspace/database';
-import { eq, and, desc, asc, like, sql, inArray } from 'drizzle-orm';
+import {
+    eq,
+    and,
+    desc,
+    asc,
+    like,
+    sql,
+    inArray,
+    or,
+    gte,
+    lte,
+    count,
+    sum,
+    avg,
+} from 'drizzle-orm';
 import {
     documentsTable,
     documentTransactionsTable,
@@ -100,7 +114,7 @@ export class DocumentsService {
                     mimeType: s3Result.etag,
                     businessId: businessId || null,
                     filePath: s3Result.url,
-                    status: 'uploaded',
+                    status: 'processed',
                     processingStatus: 'pending',
                 })
                 .returning();
@@ -117,6 +131,13 @@ export class DocumentsService {
                 s3Key: s3Result.key,
                 s3Url: s3Result.url,
                 s3Size: s3Result.size,
+                fileName: document.fileName,
+                originalFileName: document.originalFileName,
+                fileSize: document.fileSize,
+                fileType: document.fileType,
+                mimeType: document.mimeType,
+                businessId: document.businessId,
+                filePath: document.filePath,
             };
         } catch (error) {
             throw new BadRequestException(
@@ -264,10 +285,18 @@ export class DocumentsService {
         return transaction;
     }
 
-    async deleteTransaction(transactionId: string): Promise<void> {
+    async deleteTransaction(
+        transactionId: string,
+        userId: string,
+    ): Promise<void> {
         const result = await this.db
             .delete(documentTransactionsTable)
-            .where(eq(documentTransactionsTable.id, transactionId));
+            .where(
+                and(
+                    eq(documentTransactionsTable.id, transactionId),
+                    eq(documentTransactionsTable.userId, userId),
+                ),
+            );
 
         if (!result) {
             throw new NotFoundException('Transaction not found');
@@ -370,15 +399,12 @@ export class DocumentsService {
             throw new NotFoundException('Document file not found');
         }
 
-        // const presignedUrl = await this.s3Service.getPresignedUrl(
-        //     document.fileName,
-        //     expiresIn,
-        // );
-        console.log(expiresIn);
+        const downloadUrl = await this.s3Service.getSignedDownloadUrl(
+            document.fileName,
+            expiresIn,
+        );
 
-        const test = '1111111111111111111';
-
-        return { downloadUrl: test };
+        return { downloadUrl };
     }
 
     async deleteDocument(documentId: string, userId: string): Promise<void> {
@@ -1019,6 +1045,7 @@ export class DocumentsService {
             status?: string;
             notes?: string;
             type?: string;
+            isDeleted?: boolean;
         }>,
         userId: string,
     ): Promise<any[]> {
@@ -1041,6 +1068,10 @@ export class DocumentsService {
         const resultTransactions = [];
 
         for (const transaction of transactions) {
+            if (transaction.id && transaction.isDeleted) {
+                await this.deleteTransaction(transaction.id, userId);
+                continue;
+            }
             if (transaction.id) {
                 // Update existing transaction
                 const updateData: any = {};
@@ -1238,7 +1269,7 @@ export class DocumentsService {
                 fileType: 'pdf',
                 mimeType: 'application/pdf',
                 filePath: `remote-documents/${userId}/${clientId}/${remoteDocumentId}.pdf`,
-                status: 'uploaded',
+                status: 'processed',
                 processingStatus: 'pending',
                 documentType: ['remote'],
             })
@@ -1288,5 +1319,357 @@ export class DocumentsService {
             failed: 0,
             total: 3,
         };
+    }
+
+    async getFilteredDocuments(filters: {
+        userId: string;
+        search?: string;
+        clientId?: string;
+        businessId?: string;
+        documentType?: string;
+        status?: string;
+        processingStatus?: string;
+        dateFrom?: string;
+        dateTo?: string;
+        fileSizeMin?: number;
+        fileSizeMax?: number;
+        aiExtractedTransactionsMin?: number;
+        aiAccuracyMin?: number;
+        page?: number;
+        limit?: number;
+        sortBy?: string;
+        sortOrder?: 'asc' | 'desc';
+    }) {
+        const conditions = [eq(documentsTable.userId, filters.userId)];
+
+        if (filters.clientId) {
+            conditions.push(eq(documentsTable.clientId, filters.clientId));
+        }
+        if (filters.businessId) {
+            conditions.push(eq(documentsTable.businessId, filters.businessId));
+        }
+        if (filters.documentType) {
+            conditions.push(
+                sql`${documentsTable.documentType} @> ARRAY[${filters.documentType}]`,
+            );
+        }
+        if (filters.status) {
+            conditions.push(eq(documentsTable.status, filters.status));
+        }
+        if (filters.processingStatus) {
+            conditions.push(
+                eq(documentsTable.processingStatus, filters.processingStatus),
+            );
+        }
+        if (filters.search) {
+            conditions.push(
+                or(
+                    like(
+                        documentsTable.originalFileName,
+                        `%${filters.search}%`,
+                    ),
+                    like(documentsTable.filePath, `%${filters.search}%`),
+                ) as any, // Ensure type compatibility for SQL<unknown>
+            );
+        }
+        if (filters.dateFrom) {
+            conditions.push(
+                sql`${documentsTable.uploadedAt} >= ${filters.dateFrom}`,
+            );
+        }
+        if (filters.dateTo) {
+            conditions.push(
+                sql`${documentsTable.uploadedAt} <= ${filters.dateTo}`,
+            );
+        }
+        if (filters.fileSizeMin !== undefined) {
+            conditions.push(gte(documentsTable.fileSize, filters.fileSizeMin));
+        }
+        if (filters.fileSizeMax !== undefined) {
+            conditions.push(lte(documentsTable.fileSize, filters.fileSizeMax));
+        }
+        if (filters.aiExtractedTransactionsMin !== undefined) {
+            conditions.push(
+                gte(
+                    documentsTable.aiExtractedTransactions,
+                    filters.aiExtractedTransactionsMin,
+                ),
+            );
+        }
+        if (filters.aiAccuracyMin !== undefined) {
+            conditions.push(
+                gte(
+                    documentsTable.aiAccuracy,
+                    filters.aiAccuracyMin.toString(),
+                ),
+            );
+        }
+
+        // Get total count for pagination
+        const totalCount = await this.db
+            .select({ count: sql<number>`count(*)` })
+            .from(documentsTable)
+            .where(and(...conditions));
+
+        // Build order by
+        let orderBy = desc(documentsTable.uploadedAt);
+        if (filters.sortBy) {
+            const sortField = filters.sortBy as keyof typeof documentsTable;
+            if (filters.sortBy in documentsTable) {
+                orderBy =
+                    filters.sortOrder === 'asc'
+                        ? asc(documentsTable[sortField] as any)
+                        : desc(documentsTable[sortField] as any);
+            }
+        }
+
+        // Get paginated results
+        const page = filters.page || 1;
+        const limit = filters.limit || 10;
+        const offset = (page - 1) * limit;
+
+        const documents = await this.db
+            .select({
+                id: documentsTable.id,
+                userId: documentsTable.userId,
+                clientId: documentsTable.clientId,
+                businessId: documentsTable.businessId,
+                fileName: documentsTable.fileName,
+                originalFileName: documentsTable.originalFileName,
+                fileSize: documentsTable.fileSize,
+                fileType: documentsTable.fileType,
+                mimeType: documentsTable.mimeType,
+                filePath: documentsTable.filePath,
+                documentType: documentsTable.documentType,
+                status: documentsTable.status,
+                processingStatus: documentsTable.processingStatus,
+                aiExtractedTransactions: documentsTable.aiExtractedTransactions,
+                aiAccuracy: documentsTable.aiAccuracy,
+                hmrcSubmissionId: documentsTable.hmrcSubmissionId,
+                hmrcBusinessId: documentsTable.hmrcBusinessId,
+                hmrcClientId: documentsTable.hmrcClientId,
+                metadata: documentsTable.metadata,
+                uploadedAt: documentsTable.uploadedAt,
+                processedAt: documentsTable.processedAt,
+                submittedToHmrcAt: documentsTable.submittedToHmrcAt,
+                createdAt: documentsTable.createdAt,
+                updatedAt: documentsTable.updatedAt,
+            })
+            .from(documentsTable)
+            .where(and(...conditions))
+            .orderBy(orderBy)
+            .limit(limit)
+            .offset(offset);
+
+        const total = parseInt(totalCount[0]?.count?.toString() || '0');
+        const totalPages = Math.ceil(total / limit);
+
+        return {
+            documents,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages,
+            },
+        };
+    }
+
+    async getDocumentStatistics(filters: {
+        userId: string;
+        clientId?: string;
+        businessId?: string;
+        dateFrom?: string;
+        dateTo?: string;
+        documentType?: string;
+        status?: string;
+    }) {
+        const conditions = [eq(documentsTable.userId, filters.userId)];
+
+        if (filters.clientId) {
+            conditions.push(eq(documentsTable.clientId, filters.clientId));
+        }
+        if (filters.businessId) {
+            conditions.push(eq(documentsTable.businessId, filters.businessId));
+        }
+        if (filters.documentType) {
+            conditions.push(
+                sql`${documentsTable.documentType} @> ARRAY[${filters.documentType}]`,
+            );
+        }
+        if (filters.status) {
+            conditions.push(eq(documentsTable.status, filters.status));
+        }
+        if (filters.dateFrom) {
+            conditions.push(
+                sql`${documentsTable.uploadedAt} >= ${filters.dateFrom}`,
+            );
+        }
+        if (filters.dateTo) {
+            conditions.push(
+                sql`${documentsTable.uploadedAt} <= ${filters.dateTo}`,
+            );
+        }
+
+        // Get summary statistics
+        const summaryResult = await this.db
+            .select({
+                totalDocuments: count(),
+                totalFileSize: sum(documentsTable.fileSize),
+                averageFileSize: avg(documentsTable.fileSize),
+                totalTransactions: sum(documentsTable.aiExtractedTransactions),
+                averageAccuracy: avg(documentsTable.aiAccuracy),
+            })
+            .from(documentsTable)
+            .where(and(...conditions));
+
+        const summary = summaryResult[0];
+
+        // Get statistics by status
+        const statusStats = await this.db
+            .select({
+                status: documentsTable.status,
+                count: count(),
+                totalFileSize: sum(documentsTable.fileSize),
+            })
+            .from(documentsTable)
+            .where(and(...conditions))
+            .groupBy(documentsTable.status)
+            .orderBy(documentsTable.status);
+
+        // Get statistics by document type
+        const documentTypeStats = await this.db
+            .select({
+                documentType: sql<string>`unnest(${documentsTable.documentType})`,
+                count: count(),
+                totalFileSize: sum(documentsTable.fileSize),
+            })
+            .from(documentsTable)
+            .where(and(...conditions))
+            .groupBy(sql`unnest(${documentsTable.documentType})`)
+            .orderBy(sql`unnest(${documentsTable.documentType})`);
+
+        // Get statistics by business
+        const businessStats = await this.db
+            .select({
+                businessId: documentsTable.businessId,
+                count: count(),
+                totalFileSize: sum(documentsTable.fileSize),
+            })
+            .from(documentsTable)
+            .where(and(...conditions))
+            .groupBy(documentsTable.businessId)
+            .orderBy(documentsTable.businessId);
+
+        // Get monthly trends
+        const monthlyTrends = await this.db
+            .select({
+                month: sql<string>`DATE_TRUNC('month', ${documentsTable.uploadedAt})`,
+                documentCount: count(),
+                totalFileSize: sum(documentsTable.fileSize),
+                transactionCount: sum(documentsTable.aiExtractedTransactions),
+            })
+            .from(documentsTable)
+            .where(and(...conditions))
+            .groupBy(sql`DATE_TRUNC('month', ${documentsTable.uploadedAt})`)
+            .orderBy(
+                sql`DATE_TRUNC('month', ${documentsTable.uploadedAt}) DESC`,
+            )
+            .limit(12);
+
+        return {
+            summary: {
+                totalDocuments: parseInt(
+                    summary?.totalDocuments?.toString() || '0',
+                ),
+                totalFileSize: parseInt(
+                    summary?.totalFileSize?.toString() || '0',
+                ),
+                averageFileSize: parseFloat(
+                    summary?.averageFileSize?.toString() || '0',
+                ),
+                totalTransactions: parseInt(
+                    summary?.totalTransactions?.toString() || '0',
+                ),
+                averageAccuracy: parseFloat(
+                    summary?.averageAccuracy?.toString() || '0',
+                ),
+            },
+            byStatus: statusStats.map((stat) => ({
+                status: stat.status,
+                count: parseInt(stat.count?.toString() || '0'),
+                totalFileSize: parseInt(stat.totalFileSize?.toString() || '0'),
+            })),
+            byDocumentType: documentTypeStats.map((stat) => ({
+                documentType: stat.documentType,
+                count: parseInt(stat.count?.toString() || '0'),
+                totalFileSize: parseInt(stat.totalFileSize?.toString() || '0'),
+            })),
+            byBusiness: businessStats.map((stat) => ({
+                businessId: stat.businessId,
+                businessName: stat.businessId, // In a real app, you'd join with a businesses table
+                count: parseInt(stat.count?.toString() || '0'),
+                totalFileSize: parseInt(stat.totalFileSize?.toString() || '0'),
+            })),
+            monthlyTrends: monthlyTrends.map((trend) => ({
+                month: trend.month,
+                documentCount: parseInt(trend.documentCount?.toString() || '0'),
+                totalFileSize: parseInt(trend.totalFileSize?.toString() || '0'),
+                transactionCount: parseInt(
+                    trend.transactionCount?.toString() || '0',
+                ),
+            })),
+        };
+    }
+
+    async getDocumentCategories(userId: string, clientId?: string) {
+        const conditions = [eq(documentsTable.userId, userId)];
+
+        if (clientId) {
+            conditions.push(eq(documentsTable.clientId, clientId));
+        }
+
+        const categories = await this.db
+            .select({
+                category: sql<string>`unnest(${documentsTable.documentType})`,
+                count: count(),
+                totalFileSize: sum(documentsTable.fileSize),
+            })
+            .from(documentsTable)
+            .where(and(...conditions))
+            .groupBy(sql`unnest(${documentsTable.documentType})`)
+            .orderBy(sql`unnest(${documentsTable.documentType})`);
+
+        return categories.map((cat) => ({
+            category: cat.category,
+            count: parseInt(cat.count?.toString() || '0'),
+            totalFileSize: parseInt(cat.totalFileSize?.toString() || '0'),
+        }));
+    }
+
+    async getDocumentBusinesses(userId: string, clientId?: string) {
+        const conditions = [eq(documentsTable.userId, userId)];
+
+        if (clientId) {
+            conditions.push(eq(documentsTable.clientId, clientId));
+        }
+
+        const businesses = await this.db
+            .select({
+                businessId: documentsTable.businessId,
+                count: count(),
+                totalFileSize: sum(documentsTable.fileSize),
+            })
+            .from(documentsTable)
+            .where(and(...conditions))
+            .groupBy(documentsTable.businessId)
+            .orderBy(documentsTable.businessId);
+
+        return businesses.map((business) => ({
+            businessId: business.businessId,
+            businessName: business.businessId, // In a real app, you'd join with a businesses table
+            count: parseInt(business.count?.toString() || '0'),
+            totalFileSize: parseInt(business.totalFileSize?.toString() || '0'),
+        }));
     }
 }

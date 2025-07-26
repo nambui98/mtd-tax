@@ -25,6 +25,7 @@ import {
     ApiQuery,
     ApiConsumes,
     ApiBody,
+    ApiResponse,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { DocumentsService } from './documents.service';
@@ -172,6 +173,372 @@ export class DocumentsController {
         );
     }
 
+    @Get('filtered')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get filtered documents with advanced filtering' })
+    @ApiQuery({
+        name: 'search',
+        required: false,
+        description: 'Search in filename and description',
+    })
+    @ApiQuery({
+        name: 'clientId',
+        required: false,
+        description: 'Filter by client ID',
+    })
+    @ApiQuery({
+        name: 'businessId',
+        required: false,
+        description: 'Filter by business ID',
+    })
+    @ApiQuery({
+        name: 'documentType',
+        required: false,
+        description: 'Filter by document type',
+    })
+    @ApiQuery({
+        name: 'status',
+        required: false,
+        description: 'Filter by status',
+    })
+    @ApiQuery({
+        name: 'processingStatus',
+        required: false,
+        description: 'Filter by processing status',
+    })
+    @ApiQuery({
+        name: 'dateFrom',
+        required: false,
+        description: 'Filter from date (YYYY-MM-DD)',
+    })
+    @ApiQuery({
+        name: 'dateTo',
+        required: false,
+        description: 'Filter to date (YYYY-MM-DD)',
+    })
+    @ApiQuery({
+        name: 'fileSizeMin',
+        required: false,
+        description: 'Minimum file size in bytes',
+        type: 'number',
+    })
+    @ApiQuery({
+        name: 'fileSizeMax',
+        required: false,
+        description: 'Maximum file size in bytes',
+        type: 'number',
+    })
+    @ApiQuery({
+        name: 'aiExtractedTransactionsMin',
+        required: false,
+        description: 'Minimum AI extracted transactions',
+        type: 'number',
+    })
+    @ApiQuery({
+        name: 'aiAccuracyMin',
+        required: false,
+        description: 'Minimum AI accuracy (0-1)',
+        type: 'number',
+    })
+    @ApiQuery({
+        name: 'page',
+        required: false,
+        description: 'Page number',
+        type: 'number',
+    })
+    @ApiQuery({
+        name: 'limit',
+        required: false,
+        description: 'Items per page',
+        type: 'number',
+    })
+    @ApiQuery({
+        name: 'sortBy',
+        required: false,
+        description: 'Sort field',
+    })
+    @ApiQuery({
+        name: 'sortOrder',
+        required: false,
+        description: 'Sort order (asc/desc)',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Filtered documents retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                documents: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            id: { type: 'string' },
+                            originalFileName: { type: 'string' },
+                            fileSize: { type: 'number' },
+                            fileType: { type: 'string' },
+                            documentType: {
+                                type: 'array',
+                                items: { type: 'string' },
+                            },
+                            status: { type: 'string' },
+                            processingStatus: { type: 'string' },
+                            aiExtractedTransactions: { type: 'number' },
+                            aiAccuracy: { type: 'number' },
+                            uploadedAt: { type: 'string' },
+                            businessId: { type: 'string' },
+                        },
+                    },
+                },
+                pagination: {
+                    type: 'object',
+                    properties: {
+                        page: { type: 'number' },
+                        limit: { type: 'number' },
+                        total: { type: 'number' },
+                        totalPages: { type: 'number' },
+                    },
+                },
+            },
+        },
+    })
+    async getFilteredDocuments(
+        @Request() req: { user: { userId: string } },
+        @Query('search') search?: string,
+        @Query('clientId') clientId?: string,
+        @Query('businessId') businessId?: string,
+        @Query('documentType') documentType?: string,
+        @Query('status') status?: string,
+        @Query('processingStatus') processingStatus?: string,
+        @Query('dateFrom') dateFrom?: string,
+        @Query('dateTo') dateTo?: string,
+        @Query('fileSizeMin') fileSizeMin?: string,
+        @Query('fileSizeMax') fileSizeMax?: string,
+        @Query('aiExtractedTransactionsMin')
+        aiExtractedTransactionsMin?: string,
+        @Query('aiAccuracyMin') aiAccuracyMin?: string,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+        @Query('sortBy') sortBy?: string,
+        @Query('sortOrder') sortOrder?: string,
+    ) {
+        const filters = {
+            userId: req.user.userId,
+            search,
+            clientId,
+            businessId,
+            documentType,
+            status,
+            processingStatus,
+            dateFrom,
+            dateTo,
+            fileSizeMin: fileSizeMin ? parseInt(fileSizeMin) : undefined,
+            fileSizeMax: fileSizeMax ? parseInt(fileSizeMax) : undefined,
+            aiExtractedTransactionsMin: aiExtractedTransactionsMin
+                ? parseInt(aiExtractedTransactionsMin)
+                : undefined,
+            aiAccuracyMin: aiAccuracyMin
+                ? parseFloat(aiAccuracyMin)
+                : undefined,
+            page: page ? parseInt(page) : 1,
+            limit: limit ? parseInt(limit) : 10,
+            sortBy,
+            sortOrder: sortOrder as 'asc' | 'desc' | undefined,
+        };
+
+        return this.documentsService.getFilteredDocuments(filters);
+    }
+
+    @Get('statistics')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get document statistics' })
+    @ApiQuery({
+        name: 'clientId',
+        required: false,
+        description: 'Filter by client ID',
+    })
+    @ApiQuery({
+        name: 'businessId',
+        required: false,
+        description: 'Filter by business ID',
+    })
+    @ApiQuery({
+        name: 'dateFrom',
+        required: false,
+        description: 'Filter from date (YYYY-MM-DD)',
+    })
+    @ApiQuery({
+        name: 'dateTo',
+        required: false,
+        description: 'Filter to date (YYYY-MM-DD)',
+    })
+    @ApiQuery({
+        name: 'documentType',
+        required: false,
+        description: 'Filter by document type',
+    })
+    @ApiQuery({
+        name: 'status',
+        required: false,
+        description: 'Filter by status',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Document statistics retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                summary: {
+                    type: 'object',
+                    properties: {
+                        totalDocuments: { type: 'number' },
+                        totalFileSize: { type: 'number' },
+                        averageFileSize: { type: 'number' },
+                        totalTransactions: { type: 'number' },
+                        averageAccuracy: { type: 'number' },
+                    },
+                },
+                byStatus: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            status: { type: 'string' },
+                            count: { type: 'number' },
+                            totalFileSize: { type: 'number' },
+                        },
+                    },
+                },
+                byDocumentType: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            documentType: { type: 'string' },
+                            count: { type: 'number' },
+                            totalFileSize: { type: 'number' },
+                        },
+                    },
+                },
+                byBusiness: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            businessId: { type: 'string' },
+                            count: { type: 'number' },
+                            totalFileSize: { type: 'number' },
+                        },
+                    },
+                },
+                monthlyTrends: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            month: { type: 'string' },
+                            documentCount: { type: 'number' },
+                            totalFileSize: { type: 'number' },
+                            transactionCount: { type: 'number' },
+                        },
+                    },
+                },
+            },
+        },
+    })
+    async getDocumentStatistics(
+        @Request() req: { user: { userId: string } },
+        @Query('clientId') clientId?: string,
+        @Query('businessId') businessId?: string,
+        @Query('dateFrom') dateFrom?: string,
+        @Query('dateTo') dateTo?: string,
+        @Query('documentType') documentType?: string,
+        @Query('status') status?: string,
+    ) {
+        const filters = {
+            userId: req.user.userId,
+            clientId,
+            businessId,
+            dateFrom,
+            dateTo,
+            documentType,
+            status,
+        };
+
+        return this.documentsService.getDocumentStatistics(filters);
+    }
+
+    @Get('categories')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get available document categories' })
+    @ApiQuery({
+        name: 'clientId',
+        required: false,
+        description: 'Filter by client ID',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Document categories retrieved successfully',
+        schema: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    category: { type: 'string' },
+                    count: { type: 'number' },
+                    totalFileSize: { type: 'number' },
+                },
+            },
+        },
+    })
+    async getDocumentCategories(
+        @Request() req: { user: { userId: string } },
+        @Query('clientId') clientId?: string,
+    ) {
+        return this.documentsService.getDocumentCategories(
+            req.user.userId,
+            clientId,
+        );
+    }
+
+    @Get('businesses')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get available businesses for documents' })
+    @ApiQuery({
+        name: 'clientId',
+        required: false,
+        description: 'Filter by client ID',
+    })
+    @ApiResponse({
+        status: 200,
+        description: 'Document businesses retrieved successfully',
+        schema: {
+            type: 'array',
+            items: {
+                type: 'object',
+                properties: {
+                    businessId: { type: 'string' },
+                    businessName: { type: 'string' },
+                    count: { type: 'number' },
+                    totalFileSize: { type: 'number' },
+                },
+            },
+        },
+    })
+    async getDocumentBusinesses(
+        @Request() req: { user: { userId: string } },
+        @Query('clientId') clientId?: string,
+    ) {
+        return this.documentsService.getDocumentBusinesses(
+            req.user.userId,
+            clientId,
+        );
+    }
+
     @Get('folders')
     @ApiOperation({ summary: 'Get document folders' })
     @ApiQuery({ name: 'clientId', required: false })
@@ -245,7 +612,7 @@ export class DocumentsController {
         @Request() req: { user: { userId: string } },
         @Param('id') id: string,
     ) {
-        return this.documentsService.deleteTransaction(id);
+        return this.documentsService.deleteTransaction(id, req.user.userId);
     }
 
     @Post('folders')

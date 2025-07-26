@@ -50,6 +50,7 @@ export interface DocumentTransaction {
     createdAt?: string;
     updatedAt?: string;
     type?: string;
+    isDeleted?: boolean;
 }
 
 export interface DocumentFolder {
@@ -94,17 +95,69 @@ export interface DocumentStats {
     aiAccuracy?: number;
 }
 
-export interface DocumentFilters {
+export type DocumentFilters = {
     clientId?: string;
     businessId?: string;
     documentType?: string;
     status?: string;
     processingStatus?: string;
-    folderId?: string;
     search?: string;
     dateFrom?: string;
     dateTo?: string;
-}
+    fileSizeMin?: number;
+    fileSizeMax?: number;
+    aiExtractedTransactionsMin?: number;
+    aiAccuracyMin?: number;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+};
+
+export type DocumentStatistics = {
+    summary: {
+        totalDocuments: number;
+        totalFileSize: number;
+        averageFileSize: number;
+        totalTransactions: number;
+        averageAccuracy: number;
+    };
+    byStatus: Array<{
+        status: string;
+        count: number;
+        totalFileSize: number;
+    }>;
+    byDocumentType: Array<{
+        documentType: string;
+        count: number;
+        totalFileSize: number;
+    }>;
+    byBusiness: Array<{
+        businessId: string;
+        businessName: string;
+        count: number;
+        totalFileSize: number;
+    }>;
+    monthlyTrends: Array<{
+        month: string;
+        documentCount: number;
+        totalFileSize: number;
+        transactionCount: number;
+    }>;
+};
+
+export type DocumentCategory = {
+    category: string;
+    count: number;
+    totalFileSize: number;
+};
+
+export type DocumentBusiness = {
+    businessId: string;
+    businessName: string;
+    count: number;
+    totalFileSize: number;
+};
 
 export const documentsService = {
     // Upload document
@@ -547,6 +600,79 @@ export const documentsService = {
             {
                 transactions,
             },
+        );
+        return response.data.data;
+    },
+
+    // Get filtered documents with advanced filtering
+    getFilteredDocuments: async (
+        filters: DocumentFilters,
+    ): Promise<{
+        documents: Document[];
+        pagination: {
+            page: number;
+            limit: number;
+            total: number;
+            totalPages: number;
+        };
+    }> => {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+                params.append(key, value.toString());
+            }
+        });
+
+        const response = await api.get(
+            `/documents/filtered?${params.toString()}`,
+        );
+        return response.data.data;
+    },
+
+    // Get document statistics
+    getDocumentStatistics: async (filters: {
+        clientId?: string;
+        businessId?: string;
+        dateFrom?: string;
+        dateTo?: string;
+        documentType?: string;
+        status?: string;
+    }): Promise<DocumentStatistics> => {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value !== undefined && value !== null) {
+                params.append(key, value.toString());
+            }
+        });
+
+        const response = await api.get(
+            `/documents/statistics?${params.toString()}`,
+        );
+        return response.data.data;
+    },
+
+    // Get document categories
+    getDocumentCategories: async (
+        clientId?: string,
+    ): Promise<DocumentCategory[]> => {
+        const params = new URLSearchParams();
+        if (clientId) params.append('clientId', clientId);
+
+        const response = await api.get(
+            `/documents/categories?${params.toString()}`,
+        );
+        return response.data.data;
+    },
+
+    // Get document businesses
+    getDocumentBusinesses: async (
+        clientId?: string,
+    ): Promise<DocumentBusiness[]> => {
+        const params = new URLSearchParams();
+        if (clientId) params.append('clientId', clientId);
+
+        const response = await api.get(
+            `/documents/businesses?${params.toString()}`,
         );
         return response.data.data;
     },
