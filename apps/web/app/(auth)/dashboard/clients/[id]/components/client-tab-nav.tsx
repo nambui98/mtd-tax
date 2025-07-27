@@ -27,6 +27,7 @@ export default function ClientTabNav({
             <div className="flex border-b border-gray-200">
                 {businesses.map((business) => (
                     <button
+                        key={business.businessId}
                         onClick={() => setActiveBusiness(business.businessId)}
                         className={`px-6 py-3 text-sm font-medium relative transition-colors flex items-center ${
                             activeBusiness === business.businessId
@@ -103,7 +104,7 @@ export default function ClientTabNav({
                 </button> */}
             </div>
             <div className="flex border-b border-gray-200">
-                <button
+                {/* <button
                     onClick={() => setActiveTab('overview')}
                     className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
                         activeTab === 'overview'
@@ -113,7 +114,7 @@ export default function ClientTabNav({
                 >
                     <Info className="w-4 h-4 inline mr-2" />
                     Overview
-                </button>
+                </button> */}
                 <button
                     onClick={() => setActiveTab('documents')}
                     className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
@@ -125,7 +126,7 @@ export default function ClientTabNav({
                     <FileText className="w-4 h-4 inline mr-2" />
                     Documents
                 </button>
-                <button
+                {/* <button
                     onClick={() => setActiveTab('submissions')}
                     className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
                         activeTab === 'submissions'
@@ -135,8 +136,8 @@ export default function ClientTabNav({
                 >
                     <ClipboardList className="w-4 h-4 inline mr-2" />
                     Submissions
-                </button>
-                <button
+                </button> */}
+                {/* <button
                     onClick={() => setActiveTab('financials')}
                     className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
                         activeTab === 'financials'
@@ -146,7 +147,7 @@ export default function ClientTabNav({
                 >
                     <PoundSterling className="w-4 h-4 inline mr-2" />
                     Financials
-                </button>
+                </button> */}
                 <button
                     onClick={() => setActiveTab('transactions')}
                     className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
@@ -158,7 +159,7 @@ export default function ClientTabNav({
                     <ArrowLeftRight className="w-4 h-4 inline mr-2" />
                     Transactions
                 </button>
-                <button
+                {/* <button
                     onClick={() => setActiveTab('activity')}
                     className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
                         activeTab === 'activity'
@@ -168,7 +169,7 @@ export default function ClientTabNav({
                 >
                     <History className="w-4 h-4 inline mr-2" />
                     Activity
-                </button>
+                </button> */}
             </div>
 
             {/* Business Tabs (Secondary Navigation) */}

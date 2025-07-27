@@ -77,37 +77,37 @@ export default function ClientsContent({}: Props) {
             case 'Accepted':
                 return (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-success-light text-success">
-                        Authorized
+                        MTD ready
                     </span>
                 );
-            case 'Pending':
-                return (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-warning-light text-warning">
-                        Pending
-                    </span>
-                );
-            case 'Rejected':
-                return (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-danger-light text-danger">
-                        Rejected
-                    </span>
-                );
-            case 'Not Requested':
-                return (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600">
-                        Not Requested
-                    </span>
-                );
-            case 'Error':
-                return (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600">
-                        Error
-                    </span>
-                );
+            // case 'Pending':
+            //     return (
+            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-warning-light text-warning">
+            //             Pending
+            //         </span>
+            //     );
+            // case 'Rejected':
+            //     return (
+            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-danger-light text-danger">
+            //             Rejected
+            //         </span>
+            //     );
+            // case 'Not Requested':
+            //     return (
+            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600">
+            //             Not Requested
+            //         </span>
+            //     );
+            // case 'Error':
+            //     return (
+            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600">
+            //             Error
+            //         </span>
+            //     );
             default:
                 return (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600">
-                        Unknown
+                        Not connected
                     </span>
                 );
         }
@@ -116,7 +116,7 @@ export default function ClientsContent({}: Props) {
     return (
         <>
             {/* Client Groups */}
-            <div className="grid grid-cols-4 gap-4 mb-4">
+            {/* <div className="grid grid-cols-4 gap-4 mb-4">
                 <div className="bg-white rounded-lg shadow-sm p-3 flex items-center">
                     <div className="w-10 h-10 rounded-lg bg-success-light text-success flex items-center justify-center mr-3">
                         <CheckIcon className="size-6" />
@@ -197,7 +197,7 @@ export default function ClientsContent({}: Props) {
                         <ChevronRightIcon className="size-6 ml-1" />
                     </Link>
                 </div>
-            </div>
+            </div> */}
 
             {/* Control Panel */}
             <div className="bg-white rounded-t-lg shadow-sm">
@@ -206,7 +206,7 @@ export default function ClientsContent({}: Props) {
                     <div className="px-4 py-3 text-[0.875rem] font-medium text-primary border-b-2 border-primary">
                         All Clients
                     </div>
-                    <div className="px-4 py-3 text-[0.875rem] font-medium text-gray-600 hover:text-primary cursor-pointer">
+                    {/* <div className="px-4 py-3 text-[0.875rem] font-medium text-gray-600 hover:text-primary cursor-pointer">
                         Self-Employed
                     </div>
                     <div className="px-4 py-3 text-[0.875rem] font-medium text-gray-600 hover:text-primary cursor-pointer">
@@ -214,7 +214,7 @@ export default function ClientsContent({}: Props) {
                     </div>
                     <div className="px-4 py-3 text-[0.875rem] font-medium text-gray-600 hover:text-primary cursor-pointer">
                         Multiple Businesses
-                    </div>
+                    </div> */}
                 </div>
 
                 {/* Search and Filter */}
@@ -238,7 +238,7 @@ export default function ClientsContent({}: Props) {
                                 Status
                             </th>
                             <th className="px-4 py-3 text-left text-[0.75rem] font-semibold text-gray-500 uppercase">
-                                Authorization Status
+                                MTD status
                             </th>
                             <th className="px-4 py-3 text-left text-[0.75rem] font-semibold text-gray-500 uppercase">
                                 Accountant
@@ -276,13 +276,13 @@ export default function ClientsContent({}: Props) {
                                                 <Building className="size-4" />
                                             </div>
                                             <div>
-                                                <a
-                                                    href="client-detail-page.html"
+                                                <Link
+                                                    href={`/dashboard/clients/${client.id}`}
                                                     className="font-medium text-gray-900"
                                                 >
                                                     {client.firstName}{' '}
                                                     {client.lastName}
-                                                </a>
+                                                </Link>
                                                 <div className="text-[0.75rem] text-gray-500">
                                                     {client.clientType}
                                                 </div>

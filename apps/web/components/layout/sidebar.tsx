@@ -25,7 +25,7 @@ export default function Sidebar({}: Props) {
                     <div className="px-5 text-xs uppercase text-gray-500 font-semibold">
                         Main
                     </div>
-                    <Link
+                    {/* <Link
                         href="/dashboard"
                         className={cn(
                             'flex items-center px-5 py-2.5 hover:bg-gray-50 hover:text-primary transition-colors',
@@ -35,7 +35,7 @@ export default function Sidebar({}: Props) {
                     >
                         <i className="fas fa-chart-line w-5 text-center mr-2.5"></i>
                         Dashboard
-                    </Link>
+                    </Link> */}
                     <Link
                         href="/dashboard/clients"
                         className={cn(
@@ -47,7 +47,7 @@ export default function Sidebar({}: Props) {
                         <i className="fas fa-users w-5 text-center mr-2.5"></i>
                         Clients
                     </Link>
-                    <Link
+                    {/* <Link
                         href="/dashboard/submissions"
                         className={cn(
                             'flex items-center px-5 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-primary transition-colors',
@@ -57,8 +57,8 @@ export default function Sidebar({}: Props) {
                     >
                         <i className="fas fa-clipboard-list w-5 text-center mr-2.5"></i>
                         Submissions
-                    </Link>
-                    <Link
+                    </Link> */}
+                    {/* <Link
                         href="/dashboard/documents"
                         className={cn(
                             'flex items-center px-5 py-2.5 text-gray-600 hover:bg-gray-50 hover:text-primary transition-colors',
@@ -68,9 +68,9 @@ export default function Sidebar({}: Props) {
                     >
                         <i className="fas fa-folder w-5 text-center mr-2.5"></i>
                         Documents
-                    </Link>
+                    </Link> */}
                 </div>
-                <div className="mb-4">
+                {/* <div className="mb-4">
                     <div className="px-5 text-xs uppercase text-gray-500 font-semibold">
                         Administration
                     </div>
@@ -134,7 +134,7 @@ export default function Sidebar({}: Props) {
                         <i className="fas fa-question-circle w-5 text-center mr-2.5"></i>
                         Help & Support
                     </Link>
-                </div>
+                </div> */}
             </nav>
         </aside>
     );
