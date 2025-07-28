@@ -59,7 +59,7 @@ export default function Step5({ onNext }: Props) {
                         if (onNext) {
                             onNext();
                         } else {
-                            router.push('/dashboard');
+                            router.push('/dashboard/clients');
                         }
                     }, 2000);
                 } else {

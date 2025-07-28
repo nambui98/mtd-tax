@@ -284,4 +284,95 @@ export const hmrcService = {
         );
         return response.data.data;
     },
+
+    getAllBusinessTypes: async (): Promise<{
+        businessTypes: Array<{
+            code: string;
+            name: string;
+            description: string;
+            category: 'self-employment' | 'property' | 'other';
+            isActive: boolean;
+        }>;
+    }> => {
+        const response = await api.get('/hmrc/business-types');
+        return response.data;
+    },
+
+    getAllClientsBusinesses: async (): Promise<{
+        clients: Array<{
+            clientId: string;
+            clientName: string;
+            clientType: string;
+            businesses: Array<{
+                businessId: string;
+                businessName: string;
+                businessType: string;
+                tradingName?: string;
+                address: {
+                    line1: string;
+                    line2?: string;
+                    line3?: string;
+                    line4?: string;
+                    postcode: string;
+                    countryCode: string;
+                };
+                accountingPeriod: {
+                    startDate: string;
+                    endDate: string;
+                };
+                accountingType: string;
+                commencementDate: string;
+                cessationDate?: string;
+                businessDescription?: string;
+                emailAddress?: string;
+                websiteAddress?: string;
+                contactDetails?: {
+                    phoneNumber?: string;
+                    mobileNumber?: string;
+                    faxNumber?: string;
+                };
+                bankDetails?: {
+                    accountName: string;
+                    accountNumber: string;
+                    sortCode: string;
+                };
+                industryClassifications?: {
+                    sicCode?: string;
+                    sicDescription?: string;
+                };
+                links: Array<{
+                    href: string;
+                    rel: string;
+                    method: string;
+                }>;
+            }>;
+        }>;
+    }> => {
+        const response = await api.get('/hmrc/clients/businesses');
+        return response.data;
+    },
+
+    getComprehensiveBusinessInfoForAllUsers: async (
+        taxYear: string = '2024-25',
+    ): Promise<{
+        clients: Array<{
+            clientId: string;
+            clientName: string;
+            clientType: string;
+            businesses: Array<{
+                businessId: string;
+                businessName: string;
+                businessType: string;
+                businessDetails: any;
+                incomeSummary: any;
+                bsasData: any;
+                obligations: any;
+            }>;
+        }>;
+    }> => {
+        const response = await api.get(
+            `/hmrc/clients/businesses/comprehensive?taxYear=${taxYear}`,
+        );
+        return response.data;
+    },
 };

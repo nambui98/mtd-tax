@@ -623,6 +623,10 @@ export class HmrcService {
                 'Failed to send relationship invitation',
             );
         } catch (error: any) {
+            console.log('====================================');
+            console.log(error);
+            console.log('====================================');
+
             // Handle specific HMRC API errors
             if (error.response?.status === 400) {
                 const errorCode = error.response.data?.code;
@@ -773,7 +777,6 @@ export class HmrcService {
         try {
             const accessToken = await this.getAccessToken(userId);
             const userArn = await this.getArn(userId);
-
             // First, check if we have authorization for this client
             const relationship = await this.checkAgencyRelationship({
                 agencyId: userId,
@@ -1204,6 +1207,354 @@ export class HmrcService {
             console.error('Error getting comprehensive business info:', error);
             throw new BadRequestException(
                 `Failed to get comprehensive business information: ${error.message}`,
+            );
+        }
+    }
+
+    async getAllBusinessTypes(): Promise<{
+        businessTypes: Array<{
+            code: string;
+            name: string;
+            description: string;
+            category: 'self-employment' | 'property' | 'other';
+            isActive: boolean;
+        }>;
+    }> {
+        try {
+            // HMRC business types based on their API documentation
+            const businessTypes = [
+                {
+                    code: 'self-employment',
+                    name: 'Self-Employment',
+                    description: 'Self-employed business activities',
+                    category: 'self-employment' as const,
+                    isActive: true,
+                },
+                {
+                    code: 'uk-property',
+                    name: 'UK Property',
+                    description: 'UK property rental business',
+                    category: 'property' as const,
+                    isActive: true,
+                },
+                {
+                    code: 'foreign-property',
+                    name: 'Foreign Property',
+                    description: 'Foreign property rental business',
+                    category: 'property' as const,
+                    isActive: true,
+                },
+                {
+                    code: 'furnished-holiday-lets',
+                    name: 'Furnished Holiday Lets',
+                    description: 'Furnished holiday lettings business',
+                    category: 'property' as const,
+                    isActive: true,
+                },
+                {
+                    code: 'partnership',
+                    name: 'Partnership',
+                    description: 'Partnership business activities',
+                    category: 'self-employment' as const,
+                    isActive: true,
+                },
+                {
+                    code: 'limited-company',
+                    name: 'Limited Company',
+                    description: 'Limited company business activities',
+                    category: 'other' as const,
+                    isActive: true,
+                },
+                {
+                    code: 'trust',
+                    name: 'Trust',
+                    description: 'Trust business activities',
+                    category: 'other' as const,
+                    isActive: true,
+                },
+            ];
+
+            return { businessTypes };
+        } catch (error) {
+            throw new BadRequestException(
+                `Failed to get business types: ${error.message}`,
+            );
+        }
+    }
+
+    async getAllClientsBusinesses(userId: string): Promise<{
+        clients: Array<{
+            clientId: string;
+            clientName: string;
+            clientType: string;
+            businesses: Array<{
+                businessId: string;
+                businessName: string;
+                businessType: string;
+                tradingName?: string;
+                address: {
+                    line1: string;
+                    line2?: string;
+                    line3?: string;
+                    line4?: string;
+                    postcode: string;
+                    countryCode: string;
+                };
+                accountingPeriod: {
+                    startDate: string;
+                    endDate: string;
+                };
+                accountingType: string;
+                commencementDate: string;
+                cessationDate?: string;
+                businessDescription?: string;
+                emailAddress?: string;
+                websiteAddress?: string;
+                contactDetails?: {
+                    phoneNumber?: string;
+                    mobileNumber?: string;
+                    faxNumber?: string;
+                };
+                bankDetails?: {
+                    accountName: string;
+                    accountNumber: string;
+                    sortCode: string;
+                };
+                industryClassifications?: {
+                    sicCode?: string;
+                    sicDescription?: string;
+                };
+                links: Array<{
+                    href: string;
+                    rel: string;
+                    method: string;
+                }>;
+            }>;
+        }>;
+    }> {
+        try {
+            const accessToken = await this.getAccessToken(userId);
+            const userArn = await this.getArn(userId);
+
+            // Get all clients from database
+            const clients = await this.db
+                .select()
+                .from(clientsTable)
+                .where(eq(clientsTable.createdBy, userId));
+
+            const clientsWithBusinesses = [];
+
+            for (const client of clients) {
+                try {
+                    // Check if we have authorization for this client
+                    if (client.nino) {
+                        const relationship = await this.checkAgencyRelationship(
+                            {
+                                agencyId: userId,
+                                arn: userArn,
+                                nino: client.nino,
+                                knownFact: client.postcode || '',
+                            },
+                        );
+                        if (relationship.hasRelationship) {
+                            // Get businesses for this client
+                            const businesses = await this.getClientBusinesses(
+                                userId,
+                                client.nino,
+                                'ni',
+                                client.postcode || '',
+                            );
+                            console.log('====================================');
+                            console.log(businesses);
+                            console.log('====================================');
+
+                            clientsWithBusinesses.push({
+                                clientId: client.id,
+                                clientName: `${client.firstName} ${client.lastName}`,
+                                clientType: client.clientType,
+                                businesses: businesses.businesses || [],
+                            });
+                        } else {
+                            // Client exists but no HMRC relationship
+                            clientsWithBusinesses.push({
+                                clientId: client.id,
+                                clientName: `${client.firstName} ${client.lastName}`,
+                                clientType: client.clientType,
+                                businesses: [],
+                            });
+                        }
+                    } else {
+                        // Client exists but no NINO
+                        clientsWithBusinesses.push({
+                            clientId: client.id,
+                            clientName: `${client.firstName} ${client.lastName}`,
+                            clientType: client.clientType,
+                            businesses: [],
+                        });
+                    }
+                } catch (error) {
+                    console.error(
+                        `Error getting businesses for client ${client.id}:`,
+                        error,
+                    );
+                    // Add client with empty businesses array if there's an error
+                    clientsWithBusinesses.push({
+                        clientId: client.id,
+                        clientName: `${client.firstName} ${client.lastName}`,
+                        clientType: client.clientType,
+                        businesses: [],
+                    });
+                }
+            }
+
+            return { clients: clientsWithBusinesses };
+        } catch (error) {
+            throw new BadRequestException(
+                `Failed to get all clients businesses: ${error.message}`,
+            );
+        }
+    }
+
+    async getComprehensiveBusinessInfoForAllUsers(
+        userId: string,
+        taxYear: string = '2024-25',
+    ): Promise<{
+        clients: Array<{
+            clientId: string;
+            clientName: string;
+            clientType: string;
+            businesses: Array<{
+                businessId: string;
+                businessName: string;
+                businessType: string;
+                businessDetails: any;
+                incomeSummary: any;
+                bsasData: any;
+                obligations: any;
+            }>;
+        }>;
+    }> {
+        try {
+            const accessToken = await this.getAccessToken(userId);
+            const userArn = await this.getArn(userId);
+
+            // Get all clients from database
+            const clients = await this.db
+                .select()
+                .from(clientsTable)
+                .where(eq(clientsTable.assignedTo, userId));
+
+            const clientsWithComprehensiveInfo = [];
+
+            for (const client of clients) {
+                try {
+                    if (client.nino) {
+                        const relationship = await this.checkAgencyRelationship(
+                            {
+                                agencyId: userId,
+                                arn: userArn,
+                                nino: client.nino,
+                                knownFact: client.postcode || '',
+                            },
+                        );
+
+                        if (relationship.hasRelationship) {
+                            // Get businesses for this client
+                            const businesses = await this.getClientBusinesses(
+                                userId,
+                                client.nino,
+                                'ni',
+                                client.postcode || '',
+                            );
+
+                            const businessesWithComprehensiveInfo = [];
+
+                            for (const business of businesses.businesses ||
+                                []) {
+                                try {
+                                    const comprehensiveInfo =
+                                        await this.getComprehensiveBusinessInfo(
+                                            userId,
+                                            client.id,
+                                            business.businessType,
+                                            business.businessId,
+                                            client.nino,
+                                            taxYear,
+                                        );
+
+                                    businessesWithComprehensiveInfo.push({
+                                        businessId: business.businessId,
+                                        businessName: business.businessName,
+                                        businessType: business.businessType,
+                                        businessDetails:
+                                            comprehensiveInfo.businessDetails,
+                                        incomeSummary:
+                                            comprehensiveInfo.incomeSummary,
+                                        bsasData: comprehensiveInfo.bsasData,
+                                        obligations:
+                                            comprehensiveInfo.obligations,
+                                    });
+                                } catch (error) {
+                                    console.error(
+                                        `Error getting comprehensive info for business ${business.businessId}:`,
+                                        error,
+                                    );
+                                    // Add business with basic info if comprehensive info fails
+                                    businessesWithComprehensiveInfo.push({
+                                        businessId: business.businessId,
+                                        businessName: business.businessName,
+                                        businessType: business.businessType,
+                                        businessDetails: business,
+                                        incomeSummary: null,
+                                        bsasData: null,
+                                        obligations: null,
+                                    });
+                                }
+                            }
+
+                            clientsWithComprehensiveInfo.push({
+                                clientId: client.id,
+                                clientName: `${client.firstName} ${client.lastName}`,
+                                clientType: client.clientType,
+                                businesses: businessesWithComprehensiveInfo,
+                            });
+                        } else {
+                            // Client exists but no HMRC relationship
+                            clientsWithComprehensiveInfo.push({
+                                clientId: client.id,
+                                clientName: `${client.firstName} ${client.lastName}`,
+                                clientType: client.clientType,
+                                businesses: [],
+                            });
+                        }
+                    } else {
+                        // Client exists but no NINO
+                        clientsWithComprehensiveInfo.push({
+                            clientId: client.id,
+                            clientName: `${client.firstName} ${client.lastName}`,
+                            clientType: client.clientType,
+                            businesses: [],
+                        });
+                    }
+                } catch (error) {
+                    console.error(
+                        `Error getting comprehensive info for client ${client.id}:`,
+                        error,
+                    );
+                    // Add client with empty businesses array if there's an error
+                    clientsWithComprehensiveInfo.push({
+                        clientId: client.id,
+                        clientName: `${client.firstName} ${client.lastName}`,
+                        clientType: client.clientType,
+                        businesses: [],
+                    });
+                }
+            }
+
+            return { clients: clientsWithComprehensiveInfo };
+        } catch (error) {
+            throw new BadRequestException(
+                `Failed to get comprehensive business info for all users: ${error.message}`,
             );
         }
     }

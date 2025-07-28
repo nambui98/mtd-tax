@@ -111,7 +111,9 @@ export default function Step6({}: Props) {
                             className="w-full text-base"
                             asChild
                         >
-                            <Link href="/dashboard">Go to Dashboard</Link>
+                            <Link href="/dashboard/clients">
+                                Go to Dashboard
+                            </Link>
                         </Button>
                     </div>
                 </div>

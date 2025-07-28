@@ -7,6 +7,9 @@ import {
     ClockIcon,
     Loader2,
     TriangleAlertIcon,
+    Briefcase,
+    Home,
+    Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import React, { useState } from 'react';
@@ -40,9 +43,24 @@ export default function ClientsContent({}: Props) {
                 session?.user.agentReferenceNumber as string,
             ),
     });
-    console.log('====================================');
-    console.log(clients);
-    console.log('====================================');
+
+    // New queries for business data
+    // const { data: businessTypes, isLoading: isLoadingBusinessTypes } = useQuery(
+    //     {
+    //         queryKey: ['business-types'],
+    //         queryFn: () => hmrcService.getAllBusinessTypes(),
+    //     },
+    // );
+
+    const { data: clientsBusinesses, isLoading: isLoadingClientsBusinesses } =
+        useQuery({
+            queryKey: ['clients-businesses'],
+            queryFn: () => hmrcService.getAllClientsBusinesses(),
+        });
+
+    // console.log('====================================');
+    // console.log(clients);
+    // console.log('====================================');
 
     // Calculate statistics based on invitation status
     // const stats = React.useMemo(() => {
@@ -75,39 +93,103 @@ export default function ClientsContent({}: Props) {
     const getInvitationStatusBadge = (status?: string) => {
         switch (status) {
             case 'Accepted':
+            case 'MTD ready':
                 return (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-success-light text-success">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-green-100 text-green-700 border border-green-200">
                         MTD ready
                     </span>
                 );
             // case 'Pending':
             //     return (
-            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-warning-light text-warning">
+            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-yellow-100 text-yellow-700 border border-yellow-200">
             //             Pending
             //         </span>
             //     );
             // case 'Rejected':
+            // case 'Error':
             //     return (
-            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-danger-light text-danger">
-            //             Rejected
+            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-red-100 text-red-700 border border-red-200">
+            //             Error
             //         </span>
             //     );
             // case 'Not Requested':
             //     return (
-            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600">
+            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600 border border-gray-200">
             //             Not Requested
             //         </span>
             //     );
-            // case 'Error':
+            // case 'Connected':
             //     return (
-            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600">
-            //             Error
+            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+            //             Connected
+            //         </span>
+            //     );
+            // case 'Disconnected':
+            //     return (
+            //         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-orange-100 text-orange-700 border border-orange-200">
+            //             Disconnected
             //         </span>
             //     );
             default:
                 return (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600 border border-gray-200">
                         Not connected
+                    </span>
+                );
+        }
+    };
+
+    const getBusinessTypeIcon = (businessType: string) => {
+        switch (businessType) {
+            case 'self-employment':
+                return <Briefcase className="size-4" />;
+            case 'uk-property':
+            case 'foreign-property':
+            case 'furnished-holiday-lets':
+                return <Home className="size-4" />;
+            case 'partnership':
+                return <Users className="size-4" />;
+            default:
+                return <Building className="size-4" />;
+        }
+    };
+
+    const getBusinessTypeBadge = (businessType: string) => {
+        switch (businessType) {
+            case 'self-employment':
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                        Self-Employment
+                    </span>
+                );
+            case 'uk-property':
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                        UK Property
+                    </span>
+                );
+            case 'foreign-property':
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-indigo-100 text-indigo-700 border border-indigo-200">
+                        Foreign Property
+                    </span>
+                );
+            case 'furnished-holiday-lets':
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-teal-100 text-teal-700 border border-teal-200">
+                        Holiday Lets
+                    </span>
+                );
+            case 'partnership':
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-orange-100 text-orange-700 border border-orange-200">
+                        Partnership
+                    </span>
+                );
+            default:
+                return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                        {businessType}
                     </span>
                 );
         }
@@ -234,9 +316,9 @@ export default function ClientsContent({}: Props) {
                             <th className="px-4 py-3 text-left text-[0.75rem] font-semibold text-gray-500 uppercase">
                                 Businesses
                             </th>
-                            <th className="px-4 py-3 text-left text-[0.75rem] font-semibold text-gray-500 uppercase">
+                            {/* <th className="px-4 py-3 text-left text-[0.75rem] font-semibold text-gray-500 uppercase">
                                 Status
-                            </th>
+                            </th> */}
                             <th className="px-4 py-3 text-left text-[0.75rem] font-semibold text-gray-500 uppercase">
                                 MTD status
                             </th>
@@ -260,117 +342,169 @@ export default function ClientsContent({}: Props) {
                                 </td>
                             </tr>
                         ) : clients && clients.length > 0 ? (
-                            clients?.map((client) => (
-                                <tr
-                                    className="cursor-pointer hover:bg-gray-50"
-                                    key={client.id}
-                                    onClick={() => {
-                                        router.push(
-                                            `/dashboard/clients/${client.id}`,
-                                        );
-                                    }}
-                                >
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center">
-                                            <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 mr-3">
-                                                <Building className="size-4" />
-                                            </div>
-                                            <div>
-                                                <Link
-                                                    href={`/dashboard/clients/${client.id}`}
-                                                    className="font-medium text-gray-900"
-                                                >
-                                                    {client.firstName}{' '}
-                                                    {client.lastName}
-                                                </Link>
-                                                <div className="text-[0.75rem] text-gray-500">
-                                                    {client.clientType}
+                            clients?.map((client) => {
+                                // Find client's businesses from HMRC data
+                                const clientBusinesses =
+                                    clientsBusinesses?.clients?.find(
+                                        (c) => c.clientId === client.id,
+                                    )?.businesses || [];
+
+                                return (
+                                    <tr
+                                        className="cursor-pointer hover:bg-gray-50"
+                                        key={client.id}
+                                        onClick={() => {
+                                            router.push(
+                                                `/dashboard/clients/${client.id}`,
+                                            );
+                                        }}
+                                    >
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center">
+                                                <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 mr-3">
+                                                    <Building className="size-4" />
                                                 </div>
-                                                <div className="flex gap-1 mt-0.5">
-                                                    <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 flex items-center">
-                                                        {client.clientType}
+                                                <div>
+                                                    <Link
+                                                        href={`/dashboard/clients/${client.id}`}
+                                                        className="font-medium text-gray-900"
+                                                    >
+                                                        {client.firstName}{' '}
+                                                        {client.lastName}
+                                                    </Link>
+                                                    <div className="text-[0.75rem] text-gray-500">
+                                                        {getClientTypeBadge(
+                                                            client.clientType,
+                                                        )}
+                                                    </div>
+                                                    <div className="flex gap-1 mt-0.5">
+                                                        {/* <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-200 text-gray-600 flex items-center">
+                                                            {client.clientType}
+                                                        </div> */}
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-[0.875rem]">
-                                        --
-                                    </td>
-                                    <td className="px-4 py-3">--</td>
-                                    <td className="px-4 py-3">
-                                        {/* <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-danger-light text-danger">
+                                        </td>
+                                        <td className="px-4 py-3 text-[0.875rem]">
+                                            {isLoadingClientsBusinesses ? (
+                                                <Loader2 className="size-4 animate-spin" />
+                                            ) : clientBusinesses.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {clientBusinesses
+                                                        .slice(0, 3)
+                                                        .map(
+                                                            (
+                                                                business,
+                                                                index,
+                                                            ) => (
+                                                                <div
+                                                                    key={
+                                                                        business.businessId
+                                                                    }
+                                                                    className="flex items-center gap-1 text-[0.75rem] px-2 py-1 rounded bg-gray-100 text-gray-700"
+                                                                >
+                                                                    {getBusinessTypeIcon(
+                                                                        business.businessType,
+                                                                    )}
+                                                                    <span className="truncate max-w-20">
+                                                                        {
+                                                                            business.businessName
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                            ),
+                                                        )}
+                                                    {clientBusinesses.length >
+                                                        3 && (
+                                                        <div className="text-[0.75rem] px-2 py-1 rounded bg-gray-100 text-gray-600">
+                                                            +
+                                                            {clientBusinesses.length -
+                                                                3}{' '}
+                                                            more
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-400">
+                                                    No businesses
+                                                </span>
+                                            )}
+                                        </td>
+                                        {/* <td className="px-4 py-3">--</td> */}
+                                        <td className="px-4 py-3">
+                                            {/* <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[0.75rem] font-medium bg-danger-light text-danger">
                                         Critical Issues
                                     </span> */}
-                                        {isLoadingInvitations ? (
-                                            <Loader2 className="size-4 animate-spin mx-auto" />
-                                        ) : (
-                                            getInvitationStatusBadge(
-                                                invitations?.invitations?.find(
-                                                    (invitation) =>
-                                                        invitation.invitationId ===
-                                                        client?.invitationId,
-                                                )?.status,
-                                            )
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center">
-                                            <div className="uppercase w-6 h-6 rounded-full bg-blue-500 text-white text-[0.75rem] flex items-center justify-center mr-1.5">
-                                                {client.assignee?.firstName?.charAt(
-                                                    0,
-                                                )}
-                                                {client.assignee?.lastName?.charAt(
-                                                    0,
-                                                )}
-                                            </div>
-                                            <div className="text-[0.875rem] text-gray-600">
-                                                {client.assignee?.firstName}{' '}
-                                                {client.assignee?.lastName}
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center">
-                                            <div className="font-medium text-danger mr-1.5">
-                                                --
-                                            </div>
-                                            <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
-                                                --
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 relative group">
-                                        {client.totalRevenue}
-                                        <div className="absolute left-0 top-full mt-1 bg-white shadow-lg rounded-lg p-2.5 w-60 hidden group-hover:block z-50">
-                                            <div className="text-[0.75rem] font-semibold text-gray-700 mb-1.5">
-                                                Business Revenue Breakdown
-                                            </div>
-                                            <div className="flex justify-between text-[0.75rem] mb-1">
-                                                <div className="text-gray-500">
-                                                    UK Properties
+                                            {isLoadingInvitations ? (
+                                                <Loader2 className="size-4 animate-spin mx-auto" />
+                                            ) : (
+                                                getInvitationStatusBadge(
+                                                    invitations?.invitations?.find(
+                                                        (invitation) =>
+                                                            invitation.invitationId ===
+                                                            client?.invitationId,
+                                                    )?.status,
+                                                )
+                                            )}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center">
+                                                <div className="uppercase w-6 h-6 rounded-full bg-blue-500 text-white text-[0.75rem] flex items-center justify-center mr-1.5">
+                                                    {client.assignee?.firstName?.charAt(
+                                                        0,
+                                                    )}
+                                                    {client.assignee?.lastName?.charAt(
+                                                        0,
+                                                    )}
                                                 </div>
-                                                <div className="font-medium text-gray-900">
-                                                    £68,000
+                                                <div className="text-[0.875rem] text-gray-600">
+                                                    {client.assignee?.firstName}{' '}
+                                                    {client.assignee?.lastName}
                                                 </div>
                                             </div>
-                                            <div className="flex justify-between text-[0.75rem]">
-                                                <div className="text-gray-500">
-                                                    Holiday Lets
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center">
+                                                <div className="font-medium text-danger mr-1.5">
+                                                    --
                                                 </div>
-                                                <div className="font-medium text-gray-900">
-                                                    £27,000
+                                                <div className="text-[0.75rem] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">
+                                                    --
                                                 </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-right">
-                                        <button className="p-1 text-gray-600 hover:bg-gray-100 hover:text-primary rounded">
-                                            <i className="fas fa-ellipsis-v"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))
+                                        </td>
+                                        <td className="px-4 py-3 relative group">
+                                            {client.totalRevenue}
+                                            <div className="absolute left-0 top-full mt-1 bg-white shadow-lg rounded-lg p-2.5 w-60 hidden group-hover:block z-50">
+                                                <div className="text-[0.75rem] font-semibold text-gray-700 mb-1.5">
+                                                    Business Revenue Breakdown
+                                                </div>
+                                                <div className="flex justify-between text-[0.75rem] mb-1">
+                                                    <div className="text-gray-500">
+                                                        UK Properties
+                                                    </div>
+                                                    <div className="font-medium text-gray-900">
+                                                        £68,000
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-between text-[0.75rem]">
+                                                    <div className="text-gray-500">
+                                                        Holiday Lets
+                                                    </div>
+                                                    <div className="font-medium text-gray-900">
+                                                        £27,000
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-right">
+                                            <button className="p-1 text-gray-600 hover:bg-gray-100 hover:text-primary rounded">
+                                                <i className="fas fa-ellipsis-v"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         ) : (
                             <tr>
                                 <td colSpan={8} className="text-center py-4">
@@ -417,3 +551,37 @@ export default function ClientsContent({}: Props) {
         </>
     );
 }
+
+const getClientTypeBadge = (clientType: string) => {
+    switch (clientType) {
+        case 'individual':
+            return (
+                <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                    S
+                </span>
+            );
+        case 'landlord':
+            return (
+                <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                    U
+                </span>
+            );
+        case 'both':
+            return (
+                <div className="flex gap-1">
+                    <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                        S
+                    </span>
+                    <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                        U
+                    </span>
+                </div>
+            );
+        default:
+            return (
+                <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    ?
+                </span>
+            );
+    }
+};

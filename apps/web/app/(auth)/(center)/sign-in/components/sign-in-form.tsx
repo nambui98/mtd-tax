@@ -88,7 +88,7 @@ export default function SignInForm() {
         onSuccess: async (data) => {
             if (data?.ok) {
                 toast.success('Signed in successfully');
-                router.push('/dashboard');
+                router.push('/dashboard/clients');
             } else {
                 toast.error('Login failed', {
                     description:

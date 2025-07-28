@@ -49,10 +49,10 @@ export default function Navigation({}: Props) {
                         {session ? (
                             <>
                                 <Link
-                                    href="/dashboard"
+                                    href="/dashboard/clients"
                                     className={cn(
                                         'text-gray-600 hover:text-primary transition-colors',
-                                        pathname === '/dashboard' &&
+                                        pathname === '/dashboard/clients' &&
                                             'text-primary font-semibold underline',
                                     )}
                                 >

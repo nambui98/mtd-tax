@@ -760,4 +760,209 @@ export class HmrcController {
         // For now, return null to require ARN as parameter
         return Promise.resolve(null);
     }
+
+    @Get('business-types')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get all available business types' })
+    @ApiResponse({
+        status: 200,
+        description: 'Business types retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                businessTypes: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            code: {
+                                type: 'string',
+                                example: 'self-employment',
+                            },
+                            name: {
+                                type: 'string',
+                                example: 'Self-Employment',
+                            },
+                            description: {
+                                type: 'string',
+                                example: 'Self-employed business activities',
+                            },
+                            category: {
+                                type: 'string',
+                                enum: ['self-employment', 'property', 'other'],
+                            },
+                            isActive: { type: 'boolean', example: true },
+                        },
+                    },
+                },
+            },
+        },
+    })
+    async getAllBusinessTypes() {
+        return this.hmrcService.getAllBusinessTypes();
+    }
+
+    @Get('clients/businesses')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({ summary: 'Get all clients businesses' })
+    @ApiResponse({
+        status: 200,
+        description: 'All clients businesses retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                clients: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            clientId: { type: 'string' },
+                            clientName: { type: 'string' },
+                            clientType: { type: 'string' },
+                            businesses: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        businessId: { type: 'string' },
+                                        businessName: { type: 'string' },
+                                        businessType: { type: 'string' },
+                                        tradingName: { type: 'string' },
+                                        address: {
+                                            type: 'object',
+                                            properties: {
+                                                line1: { type: 'string' },
+                                                line2: { type: 'string' },
+                                                line3: { type: 'string' },
+                                                line4: { type: 'string' },
+                                                postcode: { type: 'string' },
+                                                countryCode: { type: 'string' },
+                                            },
+                                        },
+                                        accountingPeriod: {
+                                            type: 'object',
+                                            properties: {
+                                                startDate: { type: 'string' },
+                                                endDate: { type: 'string' },
+                                            },
+                                        },
+                                        accountingType: { type: 'string' },
+                                        commencementDate: { type: 'string' },
+                                        cessationDate: { type: 'string' },
+                                        businessDescription: { type: 'string' },
+                                        emailAddress: { type: 'string' },
+                                        websiteAddress: { type: 'string' },
+                                        contactDetails: {
+                                            type: 'object',
+                                            properties: {
+                                                phoneNumber: { type: 'string' },
+                                                mobileNumber: {
+                                                    type: 'string',
+                                                },
+                                                faxNumber: { type: 'string' },
+                                            },
+                                        },
+                                        bankDetails: {
+                                            type: 'object',
+                                            properties: {
+                                                accountName: { type: 'string' },
+                                                accountNumber: {
+                                                    type: 'string',
+                                                },
+                                                sortCode: { type: 'string' },
+                                            },
+                                        },
+                                        industryClassifications: {
+                                            type: 'object',
+                                            properties: {
+                                                sicCode: { type: 'string' },
+                                                sicDescription: {
+                                                    type: 'string',
+                                                },
+                                            },
+                                        },
+                                        links: {
+                                            type: 'array',
+                                            items: {
+                                                type: 'object',
+                                                properties: {
+                                                    href: { type: 'string' },
+                                                    rel: { type: 'string' },
+                                                    method: { type: 'string' },
+                                                },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    })
+    async getAllClientsBusinesses(
+        @Request() req: { user: { userId: string } },
+    ) {
+        return this.hmrcService.getAllClientsBusinesses(req.user.userId);
+    }
+
+    @Get('clients/businesses/comprehensive')
+    @UseGuards(JwtAuthGuard)
+    @ApiBearerAuth()
+    @ApiOperation({
+        summary: 'Get comprehensive business information for all clients',
+    })
+    @ApiQuery({
+        name: 'taxYear',
+        description: 'Tax Year (e.g., 2024-25)',
+        required: false,
+    })
+    @ApiResponse({
+        status: 200,
+        description:
+            'Comprehensive business information retrieved successfully',
+        schema: {
+            type: 'object',
+            properties: {
+                clients: {
+                    type: 'array',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            clientId: { type: 'string' },
+                            clientName: { type: 'string' },
+                            clientType: { type: 'string' },
+                            businesses: {
+                                type: 'array',
+                                items: {
+                                    type: 'object',
+                                    properties: {
+                                        businessId: { type: 'string' },
+                                        businessName: { type: 'string' },
+                                        businessType: { type: 'string' },
+                                        businessDetails: { type: 'object' },
+                                        incomeSummary: { type: 'object' },
+                                        bsasData: { type: 'object' },
+                                        obligations: { type: 'object' },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    })
+    async getComprehensiveBusinessInfoForAllUsers(
+        @Request() req: { user: { userId: string } },
+        @Query('taxYear') taxYear: string = '2024-25',
+    ) {
+        return this.hmrcService.getComprehensiveBusinessInfoForAllUsers(
+            req.user.userId,
+            taxYear,
+        );
+    }
 }

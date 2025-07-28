@@ -23,8 +23,9 @@ export default function ClientHeader({ client, businesses, actions }: Props) {
                             {client.firstName} {client.lastName}
                         </h1>
                         <div className="flex items-center space-x-3 mt-1">
-                            <span className="text-sm text-gray-500">
+                            <span className="text-sm text-gray-500 capitalize">
                                 {client.clientType}
+                                {/* {getClientTypeBadge(client.clientType)} */}
                             </span>
                             {/* <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                 Critical Issues
@@ -85,3 +86,37 @@ export default function ClientHeader({ client, businesses, actions }: Props) {
         </div>
     );
 }
+
+const getClientTypeBadge = (clientType: string) => {
+    switch (clientType) {
+        case 'individual':
+            return (
+                <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                    Self-Employed
+                </span>
+            );
+        case 'landlord':
+            return (
+                <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                    Landlord
+                </span>
+            );
+        case 'both':
+            return (
+                <div className="flex gap-1">
+                    <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                        Self-Employed
+                    </span>
+                    <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                        Landlord
+                    </span>
+                </div>
+            );
+        default:
+            return (
+                <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    ?
+                </span>
+            );
+    }
+};
