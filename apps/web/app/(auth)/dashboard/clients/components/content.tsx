@@ -557,23 +557,23 @@ const getClientTypeBadge = (clientType: string) => {
         case 'individual':
             return (
                 <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-blue-100 text-blue-700 border border-blue-200">
-                    S
+                    Self-Employed
                 </span>
             );
         case 'landlord':
             return (
                 <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-purple-100 text-purple-700 border border-purple-200">
-                    U
+                    Landlord
                 </span>
             );
         case 'both':
             return (
                 <div className="flex gap-1">
                     <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-blue-100 text-blue-700 border border-blue-200">
-                        S
+                        Self-Employed
                     </span>
                     <span className="inline-flex items-center px-2  rounded-full text-[0.75rem] font-medium bg-purple-100 text-purple-700 border border-purple-200">
-                        U
+                        Landlord
                     </span>
                 </div>
             );

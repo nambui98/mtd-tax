@@ -1,7 +1,11 @@
 import { Client } from '@workspace/database/dist/schema';
 import { ClipboardList, Edit, Mail, User } from 'lucide-react';
 import React from 'react';
-import { getBusinessBadgeColor, getBusinessIcon } from './client-content';
+import {
+    getBusinessBadgeColor,
+    getBusinessIcon,
+    getBusinessName,
+} from './client-content';
 import { ListOfBusiness } from '@/services/hmrc';
 
 type Props = {
@@ -39,7 +43,9 @@ export default function ClientHeader({ client, businesses, actions }: Props) {
                                 >
                                     {getBusinessIcon(business.typeOfBusiness)}
                                     <span className="ml-1">
-                                        {business.typeOfBusiness}
+                                        {getBusinessName(
+                                            business.typeOfBusiness,
+                                        )}
                                     </span>
                                 </span>
                             ))}

@@ -5,7 +5,11 @@ import { PoundSterling } from 'lucide-react';
 import { Home } from 'lucide-react';
 import React from 'react';
 import { ListOfBusiness } from '@/services/hmrc';
-import { getBusinessBadgeColor, getBusinessIcon } from './client-content';
+import {
+    getBusinessBadgeColor,
+    getBusinessIcon,
+    getBusinessName,
+} from './client-content';
 
 type Props = {
     activeTab: string;
@@ -37,14 +41,15 @@ export default function ClientTabNav({
                     >
                         {getBusinessIcon(business.typeOfBusiness)}
                         <span className="ml-2">
-                            {business.tradingName || business.typeOfBusiness}
+                            {business.tradingName ||
+                                getBusinessName(business.typeOfBusiness)}
                         </span>
                         <span
                             className={`ml-2 px-2 py-0.5 text-xs rounded ${getBusinessBadgeColor(
                                 business.typeOfBusiness,
                             )}`}
                         >
-                            {business.typeOfBusiness}
+                            {getBusinessName(business.typeOfBusiness)}
                         </span>
                         {activeBusiness === business.businessId && (
                             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>

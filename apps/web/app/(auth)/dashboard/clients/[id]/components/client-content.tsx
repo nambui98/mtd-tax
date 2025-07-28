@@ -68,7 +68,18 @@ export const getBusinessIcon = (businessType: string) => {
             return <Briefcase className="w-3 h-3" />;
     }
 };
-
+export const getBusinessName = (businessType: string) => {
+    switch (businessType) {
+        case 'self-employed':
+            return 'Self employed';
+        case 'property':
+            return 'Property';
+        case 'foreign':
+            return 'Foreign';
+        default:
+            return 'Unknown';
+    }
+};
 type Props = {
     clientId: string;
 };
